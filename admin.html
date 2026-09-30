@@ -364,7 +364,7 @@ window.STORE_CONFIG = {
 const cfg = window.STORE_CONFIG || {};
 document.getElementById('loginLogo').innerHTML = anjLogo(80);
 document.getElementById('barLogo').innerHTML = anjLogo(40);
-const sb = (window.supabase && cfg.SUPABASE_URL) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY) : null;
+const sb = (window.supabase && cfg.SUPABASE_URL) ? window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, { auth: { storageKey: 'simplify-store-admin-auth' } }) : null;
 if (!sb) document.addEventListener('DOMContentLoaded', () => { document.getElementById('loginErr').textContent = 'Could not connect to the database. Check your internet, then refresh.'; });
 const $ = id => document.getElementById(id);
 const peso = n => new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n)||0);
@@ -385,14 +385,16 @@ $('loginForm').addEventListener('submit', async e => {
   const { error } = await sb.auth.signInWithPassword({ email:$('l_email').value.trim(), password:$('l_pass').value });
   if (error) $('loginErr').textContent = 'Wrong email or password.';
 });
-$('logout').addEventListener('click', () => sb.auth.signOut());
+$('logout').addEventListener('click', () => sb.auth.signOut({ scope: 'local' }));
 
 // Deferred so Supabase calls don't run inside the auth callback (avoids a known lock-up).
 sb.auth.onAuthStateChange((_evt, session) => { setTimeout(() => onSession(session), 0); });
 async function onSession(session){
   if (!session) { $('appView').classList.add('hidden'); $('appView').dataset.ready=''; $('loginView').classList.remove('hidden'); return; }
-  const { data: ok } = await sb.rpc('is_store_admin');
-  if (!ok) { $('loginErr').textContent = 'This account is not a store admin. Add the email to store_admins in Supabase.'; await sb.auth.signOut(); return; }
+  const { data: ok, error } = await sb.rpc('is_store_admin');
+  if (error) { $('loginErr').textContent = 'Could not check admin access. Refresh and try again.'; return; }
+  if (!ok) { $('loginErr').textContent = 'This account is not a store admin.'; await sb.auth.signOut({ scope: 'local' }); return; }
+  $('loginErr').textContent = '';
   $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden');
   if (!$('appView').dataset.ready) { $('appView').dataset.ready = '1'; loadAll(); }
 }
