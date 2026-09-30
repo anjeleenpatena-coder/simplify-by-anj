@@ -223,6 +223,12 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
 
 <dialog id="dDlg"><div class="dlg"><h2 id="dTitle">Order details</h2><div class="tbl" id="dBody" style="margin-top:12px"></div>
   <div class="foot"><button class="btn ghost" id="dCopy" type="button">Copy all</button><button class="btn" type="button" onclick="document.getElementById('dDlg').close()">Close</button></div></div></dialog>
+<dialog id="rDlg"><div class="dlg f"><h2 id="rTitle">Reject order</h2>
+  <p class="note">Choose the reason. A polite email will open in Gmail for you to send.</p>
+  <div id="rList"></div>
+  <label for="rNote">Add a note <small>(optional, or required for “Other”)</small></label><textarea id="rNote" rows="3" placeholder="Example: We received ₱399 but the 1-year plan is ₱699."></textarea>
+  <p class="err" id="rErr" role="alert"></p>
+  <div class="foot"><button class="btn ghost" type="button" onclick="document.getElementById('rDlg').close()">Cancel</button><button class="btn warn" type="button" id="rGo">Reject &amp; email</button></div></div></dialog>
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script>// Supabase connection for Simplify by Anj (My Project).
@@ -463,13 +469,13 @@ function renderOrders(){
       <td>${esc(o.buyer_name)}<span class="sub">${esc(o.buyer_email)}</span>${o.buyer_phone?`<span class="sub">${esc(o.buyer_phone)}</span>`:''}</td>
       <td>${esc(o.product_name||'—')}<span class="sub">${peso(o.amount)} · <b>${esc(o.language||'English')}</b></span></td>
       <td>${esc(o.payment_method||'')}<span class="sub">Ref: ${esc(o.reference_no||'—')}</span>${dupOf(o)?`<span class="dupw">⚠ Ref also used in #${refOf(dupOf(o))}</span>`:''}</td>
-      <td><span class="pill ${o.status}">${o.status[0].toUpperCase()+o.status.slice(1)}</span>${o.delivered_at?`<span class="sub">Sent ${fmtDate(o.delivered_at)}</span>`:''}</td>
+      <td><span class="pill ${o.status}">${o.status[0].toUpperCase()+o.status.slice(1)}</span>${o.delivered_at?`<span class="sub">Sent ${fmtDate(o.delivered_at)}</span>`:''}${o.status==='rejected'&&o.notes?`<span class="sub">Reason: ${esc(o.notes)}</span>`:''}</td>
       <td><div class="acts">
         ${o.proof_path?`<button class="btn ghost sm" data-a="proof" data-id="${o.id}">View proof</button>`:''}
         ${Array.isArray(o.custom)&&o.custom.length?`<button class="btn sm" data-a="details" data-id="${o.id}">Order details</button>`:''}
         ${o.status==='pending'?`<button class="btn sm" data-a="approve" data-id="${o.id}">Approve &amp; email</button><button class="btn warn sm" data-a="reject" data-id="${o.id}">Reject</button>`:''}
         ${o.status==='approved'?`<button class="btn ghost sm" data-a="resend" data-id="${o.id}">Email again</button><button class="btn ghost sm" data-a="copy" data-id="${o.id}">Copy message</button>`:''}
-        ${o.status==='rejected'?`<button class="btn ghost sm" data-a="undo" data-id="${o.id}">Move to pending</button>`:''}
+        ${o.status==='rejected'?`<button class="btn ghost sm" data-a="reason" data-id="${o.id}">Email reason</button><button class="btn ghost sm" data-a="undo" data-id="${o.id}">Move to pending</button>`:''}
       </div></td></tr>`).join('')
   }</tbody></table>`;
 }
@@ -514,18 +520,43 @@ $('ordersTbl').addEventListener('click', async e => {
     try { await navigator.clipboard.writeText(msg.body); toast('Message copied. Paste it in Messenger or Viber.'); }
     catch { prompt('Copy this message:', msg.body); }
   }
-  if (a==='reject') {
-    if (!confirm(`Reject order #${refOf(o)} from ${o.buyer_name}?`)) return;
-    const { error } = await sb.from('store_orders').update({ status:'rejected' }).eq('id', o.id);
-    if (error) return toast('Could not update the order.');
-    toast('Order rejected.'); loadOrders();
-  }
+  if (a==='reject' || a==='reason') { openReject(o, a==='reason'); return; }
   if (a==='undo') {
     await sb.from('store_orders').update({ status:'pending' }).eq('id', o.id);
     loadOrders();
   }
 });
 
+const REASONS = [
+  ['Payment not found', 'We checked our account but could not find your payment yet.'],
+  ['Amount does not match', 'The amount we received does not match the price of your order.'],
+  ['Reference number already used', 'The reference number you sent was already used in another order.'],
+  ['Screenshot is unclear', 'We could not clearly read the payment screenshot you uploaded.'],
+  ['Other', '']
+];
+function openReject(o, emailOnly){
+  $('rTitle').textContent = `${emailOnly ? 'Email reason' : 'Reject order'} #${refOf(o)} · ${o.buyer_name}`;
+  $('rList').innerHTML = REASONS.map((r,i)=>`<label class="check"><input type="radio" name="rr" value="${i}" ${ (o.notes? r[0]===o.notes : i===0) ? 'checked':''}> ${esc(r[0])}</label>`).join('');
+  $('rNote').value = ''; $('rErr').textContent = '';
+  $('rGo').textContent = emailOnly ? 'Open email' : 'Reject & email';
+  $('rGo').onclick = async () => {
+    const i = +(document.querySelector('input[name=rr]:checked')||{}).value;
+    const extra = $('rNote').value.trim();
+    if (REASONS[i][0]==='Other' && !extra) { $('rErr').textContent = 'Type the reason in the box.'; return; }
+    const w = window.open('about:blank','_blank');
+    if (!emailOnly) {
+      const { error } = await sb.from('store_orders').update({ status:'rejected', notes: REASONS[i][0]==='Other' ? extra.slice(0,120) : REASONS[i][0] }).eq('id', o.id);
+      if (error) { w && w.close(); $('rErr').textContent = 'Could not update the order. Try again.'; return; }
+    }
+    const first = (o.buyer_name||'').split(' ')[0];
+    const why = [REASONS[i][1], extra].filter(Boolean).join(' ');
+    const body = `Hi ${first},\n\nThank you for your order of ${o.product_name||'our product'} (order ref ${refOf(o)}).\n\nUnfortunately, we could not confirm your payment. ${why}\n\nNo worries, this is easy to fix. Just reply to this email with:\n• A clear screenshot of your payment receipt\n• The correct reference number\n\nOnce we confirm it, we'll process your order right away.\n\nIf you have questions, you can also message us on WhatsApp: 0933-855-2646.\n\nSalamat po!\n${settings.store_name||'Simplify by Anj'}`;
+    const url = 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(`About your order ${refOf(o)}: payment not confirmed yet`)+'&body='+encodeURIComponent(body);
+    if (w) w.location = url; else window.open(url,'_blank');
+    $('rDlg').close(); toast(emailOnly ? 'Email opened in Gmail.' : 'Order rejected. Press Send in Gmail.'); loadOrders();
+  };
+  $('rDlg').showModal();
+}
 async function openDetails(o){
   const rows = await Promise.all((o.custom||[]).map(async f => {
     let v = f.value || '—';
