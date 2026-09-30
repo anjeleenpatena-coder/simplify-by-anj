@@ -95,6 +95,17 @@ dialog::backdrop{background:rgba(46,42,74,.45);backdrop-filter:blur(3px)}
 .langbtn b{display:block;font:600 18px/1.2 var(--head)}
 .langbtn span{font-size:13px;color:var(--muted)}
 .langbtn[aria-checked="true"]{border-color:var(--purple-dk);background:var(--purple);box-shadow:0 3px 0 var(--purple-dk)}
+.cf{margin:14px 0 4px;padding:14px 16px;border-radius:18px;background:var(--sky)}
+.cfh{margin:0 0 4px;font:600 18px var(--head)}
+.cfs{margin:14px 0 2px;font-weight:800;color:var(--purple-xdk)}
+.cfi{margin:4px 0;font-size:14px;color:var(--muted)}
+.cfhelp{display:block;color:var(--muted);font-size:13px;margin-top:3px}
+.cf textarea{width:100%;padding:11px 14px;border:2px solid var(--line);border-radius:14px;background:#fff;font:inherit}
+.from{font:600 13px var(--body);color:var(--muted)}
+.cfcount{margin:8px 0 0;font-weight:800;color:var(--purple-xdk)}.cfcount.over{color:var(--err)}
+.cfc input:disabled+span{opacity:.45}
+.cfbox{border:0;padding:0;margin:10px 0 0}.cfbox legend{font-weight:700;font-size:14px;margin-bottom:6px}
+.cfc{display:flex;gap:10px;align-items:flex-start;font-weight:600;margin:6px 0}.cfc input{width:20px;height:20px;flex:none;margin-top:2px}
 .paywith{font-weight:800;margin:16px 0 8px}
 .qrtabs{display:flex;gap:8px;flex-wrap:wrap}
 .qrtab{border:2px solid var(--purple);background:#fff;color:var(--purple-xdk);padding:7px 16px;border-radius:999px;font-weight:800;cursor:pointer}
@@ -347,7 +358,7 @@ async function load(){
 }
 async function loadInner(){
   const [p, s] = await Promise.all([
-    sb.from('store_products').select('id,name,category,kind,price,summary,description,cover_path,sort,created_at,langs')
+    sb.from('store_products').select('id,name,category,kind,price,summary,description,cover_path,sort,created_at,langs,checkout_fields')
       .eq('active', true).order('sort').order('created_at'),
     sb.from('store_settings').select('*').eq('id', 1).maybeSingle()
   ]);
@@ -387,7 +398,7 @@ function renderGrid(){
         <h3>${esc(p.name)}</h3>
         <p class="langs">${langsOf(p).map(l => `<span class="lang">${LANGS[l]}</span>`).join('')}</p>
         <p class="sum">${esc(p.summary || '')}</p>
-        <div class="row"><span class="price">${peso(p.price)}</span><button class="btn" data-id="${p.id}">${icon3d('bag',22)} Buy</button></div>
+        <div class="row"><span class="price">${planOf(p) ? '<small class="from">From</small> ' : ''}${peso(planOf(p) ? Math.min(...planOf(p).options.map(o=>o.price)) : p.price)}</span><button class="btn" data-id="${p.id}">${icon3d('bag',22)} Buy</button></div>
       </div>
     </article>`).join('');
 }
@@ -398,20 +409,25 @@ $('grid').addEventListener('click', e => {
 function openBuy(id){
   const p = products.find(x => x.id === id); if (!p) return;
   const qrs = QRS.slice(); if (settings.qr_path) qrs.push({ id:'other', label:'Other', src: pub(settings.qr_path) });
-  $('buyBody').innerHTML = `
-    <p class="kind">${esc(p.kind || '')}</p>
-    <h2 id="buyTitle">${esc(p.name)}</h2>
-    <p class="price">${peso(p.price)}</p>
-    ${p.description ? `<p class="desc">${esc(p.description)}</p>` : ''}
-    <section class="step">
+  const PL = planOf(p);
+  payAmt = PL ? PL.options[0].price : p.price; planIdx = 0;
+  const step1Html = PL
+    ? `<section class="step"><h3>${icon3d('sheet',34)} 1. ${esc(PL.label)}</h3><div class="langpick" role="radiogroup" aria-label="Plan">${PL.options.map((o,i)=>`<button type="button" role="radio" class="langbtn planbtn" aria-checked="${i===0}" data-i="${i}"><b>${esc(o.label)} · ${peso(o.price)}</b><span>${esc(o.note||'')}</span></button>`).join('')}</div></section>`
+    : `<section class="step">
       <h3>${icon3d('sheet',34)} 1. Choose your version</h3>
       <div class="langpick" role="radiogroup" aria-label="File language">${langsOf(p).map((l,i) => `<button type="button" role="radio" class="langbtn" aria-checked="${i===0}" data-l="${LANGS[l]}"><b>${LANGS[l]}</b><span>${l==='tl'?'Nakasulat sa Tagalog':'Written in English'}</span></button>`).join('')}</div>
       ${langsOf(p).length < 2 ? `<p class="tip">This product is available in ${LANGS[langsOf(p)[0]]} only.</p>` : ''}
-    </section>
+    </section>`;
+  $('buyBody').innerHTML = `
+    <p class="kind">${esc(p.kind || '')}</p>
+    <h2 id="buyTitle">${esc(p.name)}</h2>
+    <p class="price" id="dlgPrice">${peso(payAmt)}</p>
+    ${p.description ? `<p class="desc">${esc(p.description)}</p>` : ''}
+    ${step1Html}
     <section class="step">
       <h3>${icon3d('phone',34)} 2. Scan and pay</h3>
       <div class="qr">
-        <p>Amount to pay</p><p class="amt">${peso(p.price)}</p>
+        <p>Amount to pay</p><p class="amt" id="dlgAmt">${peso(payAmt)}</p>
         ${settings.account_name ? `<p>Account name: <b>${esc(settings.account_name)}</b></p>` : ''}
         ${settings.payment_note ? `<p>${esc(settings.payment_note)}</p>` : ''}
       </div>
@@ -440,18 +456,25 @@ function openBuy(id){
       </div>
       <label for="f_ref">Reference number</label>
       <input id="f_ref" name="ref" required placeholder="From your payment receipt">
+      ${customFieldsHTML(p)}
       <label for="f_proof">Payment screenshot</label>
       <input id="f_proof" name="proof" type="file" accept="image/*,application/pdf" required>
       <p class="err" id="err" role="alert"></p>
       <button class="btn full" id="sendBtn">Send order</button>
     </form>`;
   lang = LANGS[langsOf(p)[0]];
-  document.querySelector('.langpick').addEventListener('click', e => {
+  document.querySelectorAll('.planbtn').forEach(b => b.addEventListener('click', () => {
+    planIdx = +b.dataset.i; payAmt = PL.options[planIdx].price;
+    document.querySelectorAll('.planbtn').forEach(x => x.setAttribute('aria-checked', x === b));
+    $('dlgPrice').textContent = peso(payAmt); $('dlgAmt').textContent = peso(payAmt);
+  }));
+  if (!PL) document.querySelector('.langpick').addEventListener('click', e => {
     const b = e.target.closest('.langbtn'); if (!b) return;
     lang = b.dataset.l;
     document.querySelectorAll('.langbtn').forEach(x => x.setAttribute('aria-checked', x === b));
   });
   $('orderForm').addEventListener('submit', e => submitOrder(e, p));
+  wireLimits();
   document.querySelector('.qrtabs').addEventListener('click', e => {
     const t = e.target.closest('.qrtab'); if (!t) return;
     const q = qrs.find(x => x.id === t.dataset.q);
@@ -461,6 +484,77 @@ function openBuy(id){
     const m = $('f_method'); if ([...m.options].some(o => o.value === q.label)) m.value = q.label;
   });
   $('buy').showModal();
+}
+
+
+let payAmt = 0, planIdx = 0;
+function planOf(p){ return (Array.isArray(p.checkout_fields) ? p.checkout_fields : []).find(f => f.type==='plan' && Array.isArray(f.options) && f.options.length) || null; }
+function customFieldsHTML(p){
+  const F = Array.isArray(p.checkout_fields) ? p.checkout_fields : [];
+  if (!F.length) return '';
+  let h = '<div class="cf"><h4 class="cfh">Your order details</h4>';
+  F.forEach(f => {
+    if (f.type==='plan') return;
+    if (f.section) { h += `<p class="cfs">${esc(f.section)}</p>`; return; }
+    if (f.type==='info') { h += `<p class="cfi">${esc(f.label)}</p>`; return; }
+    const id = 'cf_'+f.id, req = f.required ? ' <small>(required)</small>' : '';
+    const help = f.help ? `<small class="cfhelp">${esc(f.help)}</small>` : '';
+    const ph = f.placeholder ? ` placeholder="${esc(f.placeholder)}"` : '';
+    const grp = f.group ? ` data-group="${esc(f.group)}"` : '';
+    if (f.type==='textarea') h += `<label for="${id}">${esc(f.label)}${req}</label><textarea id="${id}" rows="3"${ph}${grp}></textarea>${help}`;
+    else if (f.type==='select') h += `<label for="${id}">${esc(f.label)}${req}</label><select id="${id}">${(f.options||[]).map(o=>`<option>${esc(o)}</option>`).join('')}</select>${help}`;
+    else if (f.type==='checkboxes') h += `<fieldset class="cfbox"><legend>${esc(f.label)}</legend>${(f.options||[]).map((o,i)=>`<label class="cfc"><input type="checkbox" name="${id}" value="${esc(o)}"${grp}> <span>${esc(o)}</span></label>`).join('')}</fieldset>${help}${f.max?`<p class="cfcount" data-count="${esc(f.group||'')}" data-max="${f.max}">0 of ${f.max} questions picked</p>`:''}`;
+    else if (f.type==='file') h += `<label for="${id}">${esc(f.label)}${req}</label><input id="${id}" type="file" accept="image/*">${help}`;
+    else h += `<label for="${id}">${esc(f.label)}${req}</label><input id="${id}" type="${f.type==='email'?'email':f.type==='tel'?'tel':'text'}"${ph}>${help}`;
+  });
+  return h + '</div>';
+}
+function groupCount(g){
+  const boxes = [...document.querySelectorAll(`input[type=checkbox][data-group="${g}"]`)];
+  const areas = [...document.querySelectorAll(`textarea[data-group="${g}"]`)];
+  const lines = areas.reduce((n,a)=>n + a.value.split('\n').filter(x=>x.trim()).length, 0);
+  return { n: boxes.filter(b=>b.checked).length + lines, boxes };
+}
+function wireLimits(){
+  document.querySelectorAll('.cfcount').forEach(c => {
+    const g = c.dataset.count, max = +c.dataset.max;
+    const update = () => {
+      const { n, boxes } = groupCount(g);
+      c.textContent = `${n} of ${max} questions picked` + (n>max ? ` — please remove ${n-max}` : '');
+      c.classList.toggle('over', n>max);
+      boxes.forEach(b => { b.disabled = !b.checked && n>=max; });
+    };
+    document.querySelectorAll(`[data-group="${g}"]`).forEach(el => el.addEventListener(el.tagName==='TEXTAREA'?'input':'change', update));
+    update();
+  });
+}
+async function collectCustom(p, orderId){
+  for (const f of (p.checkout_fields||[])) {
+    if (f.max && f.group) { const { n } = groupCount(f.group); if (n > f.max) throw { user: `You picked ${n} questions. Please keep it to ${f.max} or fewer.` }; }
+  }
+  const F = Array.isArray(p.checkout_fields) ? p.checkout_fields : [];
+  const out = [];
+  for (const f of F) {
+    if (!f.id) continue;
+    const id = 'cf_'+f.id; let v = '';
+    if (f.type==='plan') { const o = f.options[planIdx]; out.push({ id:f.id, label:'Plan', value:`${o.label} (₱${o.price})` }); continue; }
+    if (f.type==='checkboxes') v = [...document.querySelectorAll(`input[name="${id}"]:checked`)].map(x=>x.value).join('; ');
+    else if (f.type==='file') {
+      const file = $(id).files[0];
+      if (file) {
+        if (file.size > 5*1024*1024) throw { user: `${f.label}: use a photo under 5 MB.` };
+        const ext = (file.name.split('.').pop()||'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
+        const path = `${orderId}/${f.id}.${ext}`;
+        const up = await sb.storage.from('order-uploads').upload(path, file, { contentType: file.type || 'image/jpeg' });
+        if (up.error) throw up.error;
+        v = 'file:'+path;
+      }
+    } else v = ($(id).value||'').trim();
+    if (f.required && !v) throw { user: `Please fill in: ${f.label}` };
+    if (f.type==='email' && v && !/^\S+@\S+\.\S+$/.test(v)) throw { user: `Check the email in: ${f.label}` };
+    out.push({ id:f.id, label:f.label, value:v });
+  }
+  return out.length ? out : null;
 }
 
 async function submitOrder(e, p){
@@ -478,14 +572,15 @@ async function submitOrder(e, p){
   btn.disabled = true; btn.textContent = 'Sending…';
   try {
     const id = crypto.randomUUID();
+    const custom = await collectCustom(p, id);
     const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace(/[^a-z0-9]/g,'') || 'jpg';
     const path = `${id}/proof.${ext}`;
     const up = await sb.storage.from('payment-proofs').upload(path, file, { contentType: file.type || 'image/jpeg' });
     if (up.error) throw up.error;
     const ins = await sb.from('store_orders').insert({
-      id, product_id: p.id, product_name: p.name, amount: p.price,
+      id, product_id: p.id, product_name: p.name, amount: payAmt,
       buyer_name: name, buyer_email: email, buyer_phone: $('f_phone').value.trim() || null,
-      payment_method: $('f_method').value, reference_no: ref, proof_path: path, language: lang
+      payment_method: $('f_method').value, reference_no: ref, proof_path: path, language: lang, custom
     });
     if (ins.error) throw ins.error;
     $('buyBody').innerHTML = `
@@ -501,7 +596,7 @@ async function submitOrder(e, p){
       </div>`;
   } catch (x) {
     console.error(x);
-    err.textContent = 'Your order did not go through. Check your internet and try again.';
+    err.textContent = (x && x.user) ? x.user : 'Your order did not go through. Check your internet and try again.';
     btn.disabled = false; btn.textContent = 'Send order';
   }
 }

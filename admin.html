@@ -110,6 +110,7 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
 .langbox.en{background:var(--sky)} .langbox.tl{background:var(--mango)}
 .langbox h4{margin:10px 0 0;font:600 16px/1.2 var(--head)}
 .langbox h4 small{font:400 13px var(--body);color:var(--muted)}
+#dBody table{min-width:0}#dBody td:first-child{font-weight:800;width:40%}
 </style>
 </head>
 <body>
@@ -219,6 +220,8 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
   </form>
 </dialog>
 
+<dialog id="dDlg"><div class="dlg"><h2 id="dTitle">Order details</h2><div class="tbl" id="dBody" style="margin-top:12px"></div>
+  <div class="foot"><button class="btn ghost" id="dCopy" type="button">Copy all</button><button class="btn" type="button" onclick="document.getElementById('dDlg').close()">Close</button></div></div></dialog>
 <div class="toast hidden" id="toast" role="status"></div>
 
 <script>// Supabase connection for Simplify by Anj (My Project).
@@ -462,6 +465,7 @@ function renderOrders(){
       <td><span class="pill ${o.status}">${o.status[0].toUpperCase()+o.status.slice(1)}</span>${o.delivered_at?`<span class="sub">Sent ${fmtDate(o.delivered_at)}</span>`:''}</td>
       <td><div class="acts">
         ${o.proof_path?`<button class="btn ghost sm" data-a="proof" data-id="${o.id}">View proof</button>`:''}
+        ${Array.isArray(o.custom)&&o.custom.length?`<button class="btn sm" data-a="details" data-id="${o.id}">Order details</button>`:''}
         ${o.status==='pending'?`<button class="btn sm" data-a="approve" data-id="${o.id}">Approve &amp; email</button><button class="btn warn sm" data-a="reject" data-id="${o.id}">Reject</button>`:''}
         ${o.status==='approved'?`<button class="btn ghost sm" data-a="resend" data-id="${o.id}">Email again</button><button class="btn ghost sm" data-a="copy" data-id="${o.id}">Copy message</button>`:''}
         ${o.status==='rejected'?`<button class="btn ghost sm" data-a="undo" data-id="${o.id}">Move to pending</button>`:''}
@@ -473,6 +477,7 @@ $('ordersTbl').addEventListener('click', async e => {
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const o = orders.find(x => x.id===b.dataset.id); if (!o) return;
   const a = b.dataset.a;
+  if (a==='details') { openDetails(o); return; }
   if (a==='proof') {
     const w = window.open('about:blank','_blank');
     const { data, error } = await sb.storage.from('payment-proofs').createSignedUrl(o.proof_path, 3600);
@@ -513,6 +518,24 @@ $('ordersTbl').addEventListener('click', async e => {
   }
 });
 
+async function openDetails(o){
+  const rows = await Promise.all((o.custom||[]).map(async f => {
+    let v = f.value || '—';
+    if (typeof v==='string' && v.startsWith('file:')) {
+      const { data } = await sb.storage.from('order-uploads').createSignedUrl(v.slice(5), 3600);
+      v = data ? `<a href="${data.signedUrl}" target="_blank" rel="noopener">Open photo</a>` : 'Photo not found';
+    } else v = esc(v).replace(/; /g,'<br>• ').replace(/\n/g,'<br>');
+    return `<tr><td>${esc(f.label)}</td><td>${v}</td></tr>`;
+  }));
+  $('dTitle').textContent = `Order #${refOf(o)} · ${o.buyer_name}`;
+  $('dBody').innerHTML = `<table>${rows.join('')}</table>`;
+  $('dCopy').onclick = async () => {
+    const txt = (o.custom||[]).map(f=>`${f.label}: ${f.value||''}`).join('\n');
+    try { await navigator.clipboard.writeText(txt); toast('Details copied.'); } catch { prompt('Copy:', txt); }
+  };
+  $('dDlg').showModal();
+}
+
 async function buildMessage(o){
   const pv = priv[o.product_id] || {};
   const tl = o.language === 'Tagalog';
@@ -535,8 +558,8 @@ async function buildMessage(o){
 }
 
 $('csv').addEventListener('click', () => {
-  const rows = [['Date','Order #','Buyer','Email','Mobile','Product','Version','Amount','Paid using','Reference no.','Status','Sent on']];
-  filtered().forEach(o => rows.push([fmtDate(o.created_at), refOf(o), o.buyer_name, o.buyer_email, o.buyer_phone||'', o.product_name||'', o.language||'English', o.amount, o.payment_method||'', o.reference_no||'', o.status, o.delivered_at?fmtDate(o.delivered_at):'']));
+  const rows = [['Date','Order #','Buyer','Email','Mobile','Product','Version','Amount','Paid using','Reference no.','Status','Sent on','Order details']];
+  filtered().forEach(o => rows.push([fmtDate(o.created_at), refOf(o), o.buyer_name, o.buyer_email, o.buyer_phone||'', o.product_name||'', o.language||'English', o.amount, o.payment_method||'', o.reference_no||'', o.status, o.delivered_at?fmtDate(o.delivered_at):'', (o.custom||[]).map(f=>`${f.label}: ${f.value||''}`).join(' | ')]));
   const csv = rows.map(r => r.map(v => `"${String(v??'').replace(/"/g,'""')}"`).join(',')).join('\n');
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob(['\ufeff'+csv], {type:'text/csv'}));
