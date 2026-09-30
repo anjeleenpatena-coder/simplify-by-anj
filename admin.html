@@ -177,6 +177,7 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
         <label for="s_pay">Payment instructions</label><input id="s_pay">
         <label for="s_del">Delivery note <small>(shown after checkout and in the footer)</small></label><input id="s_del">
         <h3 style="margin-top:22px">Delivery email</h3>
+        <label for="s_sender">Send emails from this Gmail <small>(must be logged in on this browser)</small></label><input id="s_sender" type="email" placeholder="simplifybyanj@gmail.com">
         <p class="note">Use {name}, {product}, {language}, {link}, {ref}, {store}. They fill in automatically.</p>
         <label for="s_subj">Subject</label><input id="s_subj">
         <label for="s_body">Message</label><textarea id="s_body" rows="10"></textarea>
@@ -509,7 +510,7 @@ $('ordersTbl').addEventListener('click', async e => {
     } else {
       await sb.from('store_orders').update({ delivered_at:new Date().toISOString() }).eq('id', o.id);
     }
-    const url = 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(msg.subject)+'&body='+encodeURIComponent(msg.body);
+    const url = gmailBase()+'&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(msg.subject)+'&body='+encodeURIComponent(msg.body);
     if (w) w.location = url; else window.open(url,'_blank');
     toast(a==='approve' ? 'Approved. Press Send in Gmail.' : 'Email opened in Gmail.');
     loadOrders();
@@ -551,7 +552,7 @@ function openReject(o, emailOnly){
     const first = (o.buyer_name||'').split(' ')[0];
     const why = [REASONS[i][1], extra].filter(Boolean).join(' ');
     const body = `Hi ${first},\n\nThank you for your order of ${o.product_name||'our product'} (order ref ${refOf(o)}).\n\nUnfortunately, we could not confirm your payment. ${why}\n\nNo worries, this is easy to fix. Just reply to this email with:\n• A clear screenshot of your payment receipt\n• The correct reference number\n\nOnce we confirm it, we'll process your order right away.\n\nIf you have questions, you can also message us on WhatsApp: 0933-855-2646.\n\nSalamat po!\n${settings.store_name||'Simplify by Anj'}`;
-    const url = 'https://mail.google.com/mail/?view=cm&fs=1&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(`About your order ${refOf(o)}: payment not confirmed yet`)+'&body='+encodeURIComponent(body);
+    const url = gmailBase()+'&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(`About your order ${refOf(o)}: payment not confirmed yet`)+'&body='+encodeURIComponent(body);
     if (w) w.location = url; else window.open(url,'_blank');
     $('rDlg').close(); toast(emailOnly ? 'Email opened in Gmail.' : 'Order rejected. Press Send in Gmail.'); loadOrders();
   };
@@ -575,6 +576,7 @@ async function openDetails(o){
   $('dDlg').showModal();
 }
 
+function gmailBase(){ const a=(settings.sender_email||'').trim(); return 'https://mail.google.com/mail/?view=cm&fs=1'+(a?'&authuser='+encodeURIComponent(a):''); }
 function normRef(r){ return String(r||'').replace(/[^0-9a-z]/gi,'').toLowerCase(); }
 function dupOf(o){ const r=normRef(o.reference_no); if (r.length<4) return null; return orders.find(x => x.id!==o.id && x.status!=='rejected' && normRef(x.reference_no)===r) || null; }
 function hasDelivery(o){ const pv = priv[o.product_id]||{}; const tl = o.language==='Tagalog'; return !!(tl ? (pv.file_path_tl||pv.delivery_link_tl) : (pv.file_path||pv.delivery_link)); }
@@ -724,6 +726,7 @@ async function loadSettings(){
   $('s_acct').value = settings.account_name || ''; $('s_pay').value = settings.payment_note || '';
   $('s_del').value = settings.delivery_note || '';
   $('s_subj').value = settings.email_subject || ''; $('s_body').value = settings.email_body || '';
+  $('s_sender').value = settings.sender_email || '';
   if (settings.qr_path) { $('qrPrev').src = pub(settings.qr_path); $('qrPrev').classList.remove('hidden'); }
 }
 $('s_qr').addEventListener('change', e => {
@@ -743,7 +746,7 @@ $('settingsForm').addEventListener('submit', async e => {
     }
     const upd = { store_name:$('s_name').value.trim(), tagline:$('s_tag').value.trim(), account_name:$('s_acct').value.trim(),
       payment_note:$('s_pay').value.trim(), delivery_note:$('s_del').value.trim(), qr_path,
-      email_subject:$('s_subj').value.trim(), email_body:$('s_body').value, updated_at:new Date().toISOString() };
+      email_subject:$('s_subj').value.trim(), sender_email:$('s_sender').value.trim()||null, email_body:$('s_body').value, updated_at:new Date().toISOString() };
     const { error } = await sb.from('store_settings').update(upd).eq('id',1);
     if (error) throw error;
     $('s_qr').value = ''; toast('Settings saved.'); loadSettings();
