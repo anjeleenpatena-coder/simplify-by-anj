@@ -111,6 +111,7 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
 .langbox h4{margin:10px 0 0;font:600 16px/1.2 var(--head)}
 .langbox h4 small{font:400 13px var(--body);color:var(--muted)}
 #dBody table{min-width:0}#dBody td:first-child{font-weight:800;width:40%}
+.dupw{display:block;margin-top:4px;background:#FBE4E1;color:#B42318;font-weight:800;font-size:12px;border-radius:8px;padding:2px 8px}
 </style>
 </head>
 <body>
@@ -461,7 +462,7 @@ function renderOrders(){
       <td>${fmtDate(o.created_at)}<span class="sub">#${refOf(o)}</span></td>
       <td>${esc(o.buyer_name)}<span class="sub">${esc(o.buyer_email)}</span>${o.buyer_phone?`<span class="sub">${esc(o.buyer_phone)}</span>`:''}</td>
       <td>${esc(o.product_name||'—')}<span class="sub">${peso(o.amount)} · <b>${esc(o.language||'English')}</b></span></td>
-      <td>${esc(o.payment_method||'')}<span class="sub">Ref: ${esc(o.reference_no||'—')}</span></td>
+      <td>${esc(o.payment_method||'')}<span class="sub">Ref: ${esc(o.reference_no||'—')}</span>${dupOf(o)?`<span class="dupw">⚠ Ref also used in #${refOf(dupOf(o))}</span>`:''}</td>
       <td><span class="pill ${o.status}">${o.status[0].toUpperCase()+o.status.slice(1)}</span>${o.delivered_at?`<span class="sub">Sent ${fmtDate(o.delivered_at)}</span>`:''}</td>
       <td><div class="acts">
         ${o.proof_path?`<button class="btn ghost sm" data-a="proof" data-id="${o.id}">View proof</button>`:''}
@@ -485,9 +486,16 @@ $('ordersTbl').addEventListener('click', async e => {
     if (w) w.location = data.signedUrl; else location.href = data.signedUrl;
   }
   if (a==='approve' || a==='resend') {
+    const hasFile = hasDelivery(o);
+    if (a==='approve') {
+      const dup = dupOf(o);
+      const check = `Before approving, open your ${o.payment_method||'bank or e-wallet'} app and check your transaction history.\n\nLook for: ${peso(o.amount)} received, ref no. ${o.reference_no||'(none)'}.` + (dup ? `\n\n⚠ WARNING: this ref no. was also used in order #${refOf(dup)} (${dup.buyer_name}).` : '') + `\n\nDid you find this payment in your app?`;
+      if (!confirm(check)) return;
+      if (!hasFile && !confirm('This product has no file to send (for example, a done-for-you service).\n\nApprove and send a payment confirmation email instead?')) return;
+    }
     const w = window.open('about:blank','_blank');
     b.disabled = true;
-    const msg = await buildMessage(o);
+    const msg = hasFile ? await buildMessage(o) : confirmationMessage(o);
     if (!msg) { w && w.close(); b.disabled=false; return toast(`Add the ${o.language||'English'} file or link to this product first (Products tab).`); }
     if (a==='approve') {
       const { error } = await sb.from('store_orders').update({ status:'approved', delivered_at:new Date().toISOString() }).eq('id', o.id);
@@ -536,6 +544,15 @@ async function openDetails(o){
   $('dDlg').showModal();
 }
 
+function normRef(r){ return String(r||'').replace(/[^0-9a-z]/gi,'').toLowerCase(); }
+function dupOf(o){ const r=normRef(o.reference_no); if (r.length<4) return null; return orders.find(x => x.id!==o.id && x.status!=='rejected' && normRef(x.reference_no)===r) || null; }
+function hasDelivery(o){ const pv = priv[o.product_id]||{}; const tl = o.language==='Tagalog'; return !!(tl ? (pv.file_path_tl||pv.delivery_link_tl) : (pv.file_path||pv.delivery_link)); }
+function confirmationMessage(o){
+  const plan = (o.custom||[]).find(f=>f.id==='plan');
+  const first = (o.buyer_name||'').split(' ')[0];
+  return { subject: `Payment confirmed: ${o.product_name||'your order'}`,
+    body: `Hi ${first},\n\nThank you! We received your payment of ${peso(o.amount)} for ${o.product_name||'your order'}${plan?` (${plan.value})`:''}.\n\nWe're now preparing your order. We'll send everything to this email within 1–2 days.\n\nOrder ref: ${refOf(o)}\n\nSalamat!\n${settings.store_name||'Simplify by Anj'}` };
+}
 async function buildMessage(o){
   const pv = priv[o.product_id] || {};
   const tl = o.language === 'Tagalog';
