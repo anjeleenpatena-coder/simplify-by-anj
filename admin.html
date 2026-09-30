@@ -388,12 +388,23 @@ $('loginForm').addEventListener('submit', async e => {
 $('logout').addEventListener('click', () => sb.auth.signOut({ scope: 'local' }));
 
 // Deferred so Supabase calls don't run inside the auth callback (avoids a known lock-up).
-sb.auth.onAuthStateChange((_evt, session) => { setTimeout(() => onSession(session), 0); });
-async function onSession(session){
-  if (!session) { $('appView').classList.add('hidden'); $('appView').dataset.ready=''; $('loginView').classList.remove('hidden'); return; }
+// Token refreshes are ignored: the admin check runs once per login, not on every refresh.
+let adminUid = null;
+sb.auth.onAuthStateChange((evt, session) => {
+  if (evt === 'TOKEN_REFRESHED' || evt === 'USER_UPDATED') return;
+  setTimeout(() => onSession(evt, session), 0);
+});
+async function onSession(evt, session){
+  if (!session) {
+    adminUid = null;
+    $('appView').classList.add('hidden'); $('appView').dataset.ready=''; $('loginView').classList.remove('hidden');
+    return;
+  }
+  if (adminUid === session.user.id) return;          // already checked this login
   const { data: ok, error } = await sb.rpc('is_store_admin');
-  if (error) { $('loginErr').textContent = 'Could not check admin access. Refresh and try again.'; return; }
+  if (error) { $('loginErr').textContent = 'Could not check admin access. Wait a minute, then refresh.'; return; }
   if (!ok) { $('loginErr').textContent = 'This account is not a store admin.'; await sb.auth.signOut({ scope: 'local' }); return; }
+  adminUid = session.user.id;
   $('loginErr').textContent = '';
   $('loginView').classList.add('hidden'); $('appView').classList.remove('hidden');
   if (!$('appView').dataset.ready) { $('appView').dataset.ready = '1'; loadAll(); }
