@@ -477,6 +477,7 @@ function renderOrders(){
         ${o.status==='pending'?`<button class="btn sm" data-a="approve" data-id="${o.id}">Approve &amp; email</button><button class="btn warn sm" data-a="reject" data-id="${o.id}">Reject</button>`:''}
         ${o.status==='approved'?`<button class="btn ghost sm" data-a="resend" data-id="${o.id}">Email again</button><button class="btn ghost sm" data-a="copy" data-id="${o.id}">Copy message</button>`:''}
         ${o.status==='rejected'?`<button class="btn ghost sm" data-a="reason" data-id="${o.id}">Email reason</button><button class="btn ghost sm" data-a="undo" data-id="${o.id}">Move to pending</button>`:''}
+        <button class="btn warn sm" data-a="delorder" data-id="${o.id}">🗑 Delete</button>
       </div></td></tr>`).join('')
   }</tbody></table>`;
 }
@@ -522,6 +523,16 @@ $('ordersTbl').addEventListener('click', async e => {
     catch { prompt('Copy this message:', msg.body); }
   }
   if (a==='reject' || a==='reason') { openReject(o, a==='reason'); return; }
+  if (a==='delorder') {
+    if (!confirm(`Permanently delete order #${refOf(o)} from ${o.buyer_name}?\n\nThis removes it from your dashboard and sales totals, together with the payment screenshot. This cannot be undone.`)) return;
+    b.disabled = true;
+    const files = (o.custom||[]).filter(f => typeof f.value==='string' && f.value.startsWith('file:')).map(f => f.value.slice(5));
+    if (o.proof_path) await sb.storage.from('payment-proofs').remove([o.proof_path]);
+    if (files.length) await sb.storage.from('order-uploads').remove(files);
+    const { error } = await sb.from('store_orders').delete().eq('id', o.id);
+    if (error) { b.disabled=false; return toast('Could not delete the order. Try again.'); }
+    toast('Order deleted.'); loadOrders(); return;
+  }
   if (a==='undo') {
     await sb.from('store_orders').update({ status:'pending' }).eq('id', o.id);
     loadOrders();
