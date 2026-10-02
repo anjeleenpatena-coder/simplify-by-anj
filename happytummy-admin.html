@@ -40,8 +40,8 @@ dt{color:var(--muted)} dd{margin:0;font-weight:800;overflow-wrap:anywhere}
 .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .warn{background:#FAD4CE;color:#7A1A0E;border-radius:12px;padding:8px 10px;margin-top:10px;font-weight:800}
 .msg{margin:10px 0 0;font-weight:800}
-.tabs{display:flex;gap:8px;margin-top:14px}
-.tabbtn{flex:1;border:2px solid var(--cocoa);background:#fff;border-radius:999px;padding:10px 6px;font-weight:900;font-size:15px;min-height:48px;cursor:pointer}
+.tabs{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.tabbtn{flex:1 1 40%;border:2px solid var(--cocoa);background:#fff;border-radius:999px;padding:10px 6px;font-weight:900;font-size:15px;min-height:48px;cursor:pointer}
 .tabbtn[aria-selected="true"]{background:var(--cocoa);color:var(--sun)}
 .grp{font-family:'Fredoka','Nunito',sans-serif;font-size:22px;color:var(--tomato);margin:0 0 4px}
 .mi{border-top:2px dotted var(--line);padding:12px 0;display:grid;grid-template-columns:1fr 110px;gap:8px 10px}
@@ -53,6 +53,26 @@ dt{color:var(--muted)} dd{margin:0;font-weight:800;overflow-wrap:anywhere}
 .mi.unavailable,.mi.hidden{background:#F1F1F1;margin:0 -10px;padding:12px 10px;border-radius:12px}
 .saved{grid-column:1 / -1;font-size:14px;font-weight:900;color:var(--leaf);min-height:18px}
 .saved.no{color:var(--tomato)}
+.stats{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:14px}
+.stat{background:var(--paper);border-radius:18px;padding:12px 14px}
+.stat span{display:block;font-size:13.5px;color:var(--muted)}
+.stat b{font-family:'Fredoka','Nunito',sans-serif;font-size:26px;line-height:1.1;display:block;overflow-wrap:anywhere}
+.stat small{display:block;font-size:12.5px;color:var(--muted)}
+.stat.big{grid-column:1 / -1;background:var(--cocoa);color:#fff}
+.stat.big span,.stat.big small{color:#FFE9A8}
+.stat.big b{font-size:34px;color:var(--sun)}
+.stat.big.neg b{color:#FFB3A6}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:right;padding:8px 3px;border-bottom:2px dotted var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left}
+th{font-size:12.5px;color:var(--muted)}
+td.neg{color:var(--tomato)} td.pos{color:var(--leaf)}
+.ent{display:flex;justify-content:space-between;align-items:center;gap:10px;border-top:2px dotted var(--line);padding:10px 0}
+.ent:first-of-type{border-top:0}
+.ent small{display:block;color:var(--muted);font-size:13px}
+.ent .amt{font-weight:900;white-space:nowrap}
+.ent .x{border:2px solid var(--tomato);color:var(--tomato);background:#fff;border-radius:999px;min-width:44px;min-height:44px;font-weight:900;cursor:pointer}
 .pc{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:2px dotted var(--line);padding:12px 0}
 .pc:first-child{border-top:0}
 .pc b{font-family:'Fredoka','Nunito',sans-serif;font-size:22px;display:block}
@@ -89,6 +109,7 @@ dialog::backdrop{background:rgba(58,29,16,.7)}
       <button class="tabbtn" role="tab" id="tabOrders" aria-selected="true">Orders</button>
       <button class="tabbtn" role="tab" id="tabMenu" aria-selected="false">Edit menu</button>
       <button class="tabbtn" role="tab" id="tabPromos" aria-selected="false">Promo codes</button>
+      <button class="tabbtn" role="tab" id="tabMoney" aria-selected="false">Money tracker</button>
     </div>
     <div id="ordersView">
       <div class="filters" id="filters"></div>
@@ -128,6 +149,37 @@ dialog::backdrop{background:rgba(58,29,16,.7)}
         <input class="in" id="pcMin" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
         <button class="btn" id="pcAdd">Add promo code</button>
         <p class="msg" id="pcMsg" role="status"></p>
+      </section>
+    </div>
+    <div id="moneyView" hidden>
+      <div class="filters" id="periods"></div>
+      <p class="meta" id="periodLabel" style="margin:10px 0 0;color:var(--cocoa)"></p>
+      <p class="msg" id="moneyMsg" role="status"></p>
+      <div class="stats" id="stats"></div>
+      <section class="card">
+        <h2 id="breakTitle">Day by day</h2>
+        <div class="scroll" id="breakdown"></div>
+      </section>
+      <section class="card">
+        <h2>Add capital, expense, or other sale</h2>
+        <label for="fDate">Date</label>
+        <input class="in" id="fDate" type="date">
+        <label for="fKind">Type</label>
+        <select class="in" id="fKind">
+          <option value="expense">Expense (ingredients, packaging, gas, rider)</option>
+          <option value="capital">Capital (equipment, starting stock, puhunan)</option>
+          <option value="other_sale">Other sale (order not from the order form)</option>
+        </select>
+        <label for="fNote">What is it for?</label>
+        <input class="in" id="fNote" maxlength="200" placeholder="Example: rice 25kg, eggs 2 trays">
+        <label for="fAmount">Amount (₱)</label>
+        <input class="in" id="fAmount" type="number" inputmode="decimal" min="0" step="0.01">
+        <button class="btn" id="fAdd">Add entry</button>
+        <p class="msg" id="fMsg" role="status"></p>
+      </section>
+      <section class="card">
+        <h2>Entries in this period</h2>
+        <div id="entries"></div>
       </section>
     </div>
   </section>
@@ -249,12 +301,14 @@ $('viewerClose').addEventListener('click',function(){$('viewer').close()});
 var menu=[];
 var STATUS=[['available','Available'],['sold_out','Sold out'],['unavailable','Unavailable'],['hidden','Hide']];
 function showTab(which){
-  [['orders','tabOrders'],['menu','tabMenu'],['promos','tabPromos']].forEach(function(t){
+  [['orders','tabOrders'],['menu','tabMenu'],['promos','tabPromos'],['money','tabMoney']].forEach(function(t){
     $(t[0]+'View').hidden=t[0]!==which; $(t[1]).setAttribute('aria-selected',t[0]===which);
   });
   if(which==='menu') loadMenu();
   if(which==='promos') loadPromos();
+  if(which==='money') startMoney();
 }
+$('tabMoney').addEventListener('click',function(){showTab('money')});
 $('tabPromos').addEventListener('click',function(){showTab('promos')});
 
 /* ---------- promo codes ---------- */
@@ -374,6 +428,95 @@ $('addItem').addEventListener('click',function(){
     if(r.error){$('addMsg').textContent='Not added. Try again.';return;}
     $('addMsg').textContent='Added '+name+'.'; $('newName').value=''; $('newPrice').value=''; $('newGrpName').value=''; loadMenu();
   });
+});
+
+/* ---------- money tracker ---------- */
+var PAID=['confirmed','preparing','out_for_delivery','delivered'];
+var PERIODS=[['today','Today'],['week','This week'],['month','This month'],['last','Last month'],['all','All time']];
+var period='today', mOrders=[], mEntries=[];
+var KIND={capital:'Capital',expense:'Expense',other_sale:'Other sale'};
+function money(n){n=Number(n)||0;var neg=n<0;n=Math.abs(n);return (neg?'−':'')+'₱'+n.toLocaleString('en-PH',{minimumFractionDigits:(Math.round(n*100)%100)?2:0,maximumFractionDigits:2});}
+function phDay(d){return new Date(d).toLocaleDateString('en-CA',{timeZone:'Asia/Manila'});}
+function addDays(day,n){var d=new Date(day+'T00:00:00Z');d.setUTCDate(d.getUTCDate()+n);return d.toISOString().slice(0,10);}
+function nice(day){return new Date(day+'T00:00:00Z').toLocaleDateString('en-PH',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric'});}
+function rangeOf(p){
+  var t=phDay(new Date()), y=+t.slice(0,4), m=+t.slice(5,7);
+  var monthRange=function(yy,mm){var s=yy+'-'+String(mm).padStart(2,'0')+'-01';var e=new Date(Date.UTC(yy,mm,0)).toISOString().slice(0,10);return [s,e];};
+  if(p==='today') return [t,t];
+  if(p==='week'){var dow=(new Date(t+'T00:00:00Z').getUTCDay()+6)%7;var s=addDays(t,-dow);return [s,addDays(s,6)];}
+  if(p==='month') return monthRange(y,m);
+  if(p==='last') return m===1?monthRange(y-1,12):monthRange(y,m-1);
+  return null;
+}
+function startMoney(){
+  if(!$('periods').innerHTML){
+    $('periods').innerHTML=PERIODS.map(function(f){return '<button class="chip" data-p="'+f[0]+'" aria-pressed="'+(f[0]===period)+'">'+f[1]+'</button>'}).join('');
+    $('fDate').value=phDay(new Date());
+  }
+  loadMoney();
+}
+$('periods').addEventListener('click',function(e){
+  var c=e.target.closest('.chip'); if(!c) return; period=c.dataset.p;
+  $('periods').querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed',x.dataset.p===period)}); loadMoney();
+});
+function loadMoney(){
+  var r=rangeOf(period);
+  $('periodLabel').textContent=r?(r[0]===r[1]?nice(r[0]):(nice(r[0])+' to '+nice(r[1]))):'Everything since you started';
+  $('moneyMsg').textContent='Loading…';
+  var oq=sb.from('happy_tummy_orders').select('created_at,status,total'), fq=sb.from('happy_tummy_finance').select('*');
+  if(r){
+    oq=oq.gte('created_at',r[0]+'T00:00:00+08:00').lt('created_at',addDays(r[1],1)+'T00:00:00+08:00');
+    fq=fq.gte('entry_date',r[0]).lte('entry_date',r[1]);
+  }
+  Promise.all([oq.order('created_at',{ascending:false}).limit(5000),fq.order('entry_date',{ascending:false}).limit(5000)]).then(function(res){
+    if(res[0].error||res[1].error){$('moneyMsg').textContent='Could not load. Refresh the page.';return;}
+    mOrders=(res[0].data||[]).filter(function(o){return PAID.indexOf(o.status)>-1}); mEntries=res[1].data||[];
+    $('moneyMsg').textContent=''; drawMoney();
+  });
+}
+function drawMoney(){
+  var byMonth=period==='all', rows={};
+  var row=function(k){return rows[k]||(rows[k]={orders:0,sales:0,other:0,capital:0,expense:0})};
+  var sum={orders:0,sales:0,other:0,capital:0,expense:0};
+  mOrders.forEach(function(o){var k=phDay(o.created_at);if(byMonth)k=k.slice(0,7);var x=row(k);x.orders++;x.sales+=Number(o.total);sum.orders++;sum.sales+=Number(o.total);});
+  mEntries.forEach(function(e){var k=byMonth?e.entry_date.slice(0,7):e.entry_date,x=row(k),a=Number(e.amount);
+    if(e.kind==='other_sale'){x.other+=a;sum.other+=a;} else {x[e.kind]+=a;sum[e.kind]+=a;}});
+  var income=sum.sales+sum.other-sum.capital-sum.expense;
+  $('stats').innerHTML=
+    '<div class="stat"><span>Paid orders</span><b>'+sum.orders+'</b><small>From the order form</small></div>'+
+    '<div class="stat"><span>Sales</span><b>'+money(sum.sales+sum.other)+'</b><small>'+(sum.other?('Includes '+money(sum.other)+' other sales'):'Money collected')+'</small></div>'+
+    '<div class="stat"><span>Capital</span><b>'+money(sum.capital)+'</b></div>'+
+    '<div class="stat"><span>Expenses</span><b>'+money(sum.expense)+'</b></div>'+
+    '<div class="stat big'+(income<0?' neg':'')+'"><span>Income</span><b>'+money(income)+'</b><small>Sales minus capital and expenses</small></div>';
+  var keys=Object.keys(rows).sort().reverse();
+  $('breakTitle').textContent=byMonth?'Month by month':'Day by day';
+  $('breakdown').innerHTML=keys.length?('<table><thead><tr><th>'+(byMonth?'Month':'Date')+'</th><th>Orders</th><th>Sales</th><th>Costs</th><th>Income</th></tr></thead><tbody>'+keys.map(function(k){
+    var x=rows[k],sales=x.sales+x.other,costs=x.capital+x.expense,inc=sales-costs;
+    var label=byMonth?new Date(k+'-01T00:00:00Z').toLocaleDateString('en-PH',{timeZone:'UTC',month:'short',year:'numeric'}):new Date(k+'T00:00:00Z').toLocaleDateString('en-PH',{timeZone:'UTC',month:'short',day:'numeric'});
+    return '<tr><td>'+esc(label)+'</td><td>'+x.orders+'</td><td>'+money(sales)+'</td><td>'+money(costs)+'</td><td class="'+(inc<0?'neg':'pos')+'">'+money(inc)+'</td></tr>';
+  }).join('')+'</tbody></table>'):'<p class="meta">No paid orders or entries in this period.</p>';
+  $('entries').innerHTML=mEntries.length?mEntries.map(function(e){
+    return '<div class="ent" data-id="'+esc(e.id)+'"><div><b>'+esc(e.note)+'</b><small>'+esc(KIND[e.kind])+' · '+esc(nice(e.entry_date))+'</small></div>'+
+      '<div style="display:flex;align-items:center;gap:10px"><span class="amt">'+(e.kind==='other_sale'?'+':'−')+money(e.amount).replace('−','')+'</span><button class="x" aria-label="Delete '+esc(e.note)+'">✕</button></div></div>';
+  }).join(''):'<p class="meta">Nothing added for this period yet.</p>';
+}
+$('fAdd').addEventListener('click',function(){
+  var d=$('fDate').value, kind=$('fKind').value, note=$('fNote').value.trim(), amt=Math.round(Number($('fAmount').value)*100)/100, m=$('fMsg');
+  if(!d){m.textContent='Pick the date.';return;}
+  if(!note){m.textContent='Type what it is for.';return;}
+  if(!(amt>0)){m.textContent='Type the amount, numbers only.';return;}
+  m.textContent='Adding…';
+  sb.from('happy_tummy_finance').insert({entry_date:d,kind:kind,note:note,amount:amt}).then(function(r){
+    if(r.error){m.textContent='Not added. Try again.';return;}
+    m.textContent='Added '+KIND[kind].toLowerCase()+': '+note+', '+money(amt)+'.'; $('fNote').value=''; $('fAmount').value=''; loadMoney();
+  });
+});
+$('entries').addEventListener('click',function(e){
+  var b=e.target.closest('.x'); if(!b) return;
+  var id=b.closest('.ent').dataset.id;
+  if(!confirm('Delete this entry?')) return;
+  b.disabled=true;
+  sb.from('happy_tummy_finance').delete().eq('id',id).then(function(r){ if(r.error){b.disabled=false;alert('Could not delete. Try again.');return;} loadMoney(); });
 });
 })();
 </script>
