@@ -40,6 +40,27 @@ dt{color:var(--muted)} dd{margin:0;font-weight:800;overflow-wrap:anywhere}
 .acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
 .warn{background:#FAD4CE;color:#7A1A0E;border-radius:12px;padding:8px 10px;margin-top:10px;font-weight:800}
 .msg{margin:10px 0 0;font-weight:800}
+.tabs{display:flex;gap:8px;margin-top:14px}
+.tabbtn{flex:1;border:2px solid var(--cocoa);background:#fff;border-radius:999px;padding:10px 6px;font-weight:900;font-size:15px;min-height:48px;cursor:pointer}
+.tabbtn[aria-selected="true"]{background:var(--cocoa);color:var(--sun)}
+.grp{font-family:'Fredoka','Nunito',sans-serif;font-size:22px;color:var(--tomato);margin:0 0 4px}
+.mi{border-top:2px dotted var(--line);padding:12px 0;display:grid;grid-template-columns:1fr 110px;gap:8px 10px}
+.mi:first-of-type{border-top:0}
+.mi label{font-size:13px;color:var(--muted);display:block}
+.mi .in{margin:2px 0 0}
+.mi .wide{grid-column:1 / -1}
+.mi.sold_out{background:#FFF3D6;margin:0 -10px;padding:12px 10px;border-radius:12px}
+.mi.unavailable,.mi.hidden{background:#F1F1F1;margin:0 -10px;padding:12px 10px;border-radius:12px}
+.saved{grid-column:1 / -1;font-size:14px;font-weight:900;color:var(--leaf);min-height:18px}
+.saved.no{color:var(--tomato)}
+.pc{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;border-top:2px dotted var(--line);padding:12px 0}
+.pc:first-child{border-top:0}
+.pc b{font-family:'Fredoka','Nunito',sans-serif;font-size:22px;display:block}
+.pc.off b,.pc.off span{color:#8A7468}
+.quick{display:flex;gap:5px;flex-wrap:wrap}
+.quick button{border:2px solid var(--cocoa);background:#fff;border-radius:999px;padding:6px 9px;font-weight:900;font-size:13px;min-height:42px;cursor:pointer}
+.quick button[aria-pressed="true"]{background:var(--cocoa);color:#fff}
+.quick button[data-v="sold_out"][aria-pressed="true"],.quick button[data-v="unavailable"][aria-pressed="true"]{background:var(--tomato);border-color:var(--tomato)}
 dialog{border:0;border-radius:18px;padding:12px;max-width:min(94vw,560px)}
 dialog img{display:block;max-width:100%;max-height:74vh;margin:0 auto 10px;border-radius:10px}
 dialog::backdrop{background:rgba(58,29,16,.7)}
@@ -64,9 +85,51 @@ dialog::backdrop{background:rgba(58,29,16,.7)}
   </section>
 
   <section id="app" hidden>
-    <div class="filters" id="filters"></div>
-    <p class="msg" id="appMsg" role="status"></p>
-    <div id="list"></div>
+    <div class="tabs" role="tablist">
+      <button class="tabbtn" role="tab" id="tabOrders" aria-selected="true">Orders</button>
+      <button class="tabbtn" role="tab" id="tabMenu" aria-selected="false">Edit menu</button>
+      <button class="tabbtn" role="tab" id="tabPromos" aria-selected="false">Promo codes</button>
+    </div>
+    <div id="ordersView">
+      <div class="filters" id="filters"></div>
+      <p class="msg" id="appMsg" role="status"></p>
+      <div id="list"></div>
+    </div>
+    <div id="menuView" hidden>
+      <p class="msg" id="menuMsg" role="status"></p>
+      <div id="menuList"></div>
+      <section class="card">
+        <h2>Add new food or drink</h2>
+        <label for="newGrp">Section</label>
+        <select class="in" id="newGrp"></select>
+        <input class="in" id="newGrpName" placeholder="Name of the new section" maxlength="60" hidden aria-label="Name of the new section">
+        <label for="newName">Item name</label>
+        <input class="in" id="newName" maxlength="80">
+        <label for="newPrice">Price (₱)</label>
+        <input class="in" id="newPrice" type="number" inputmode="numeric" min="0" step="1">
+        <label for="newEgg">Egg option</label>
+        <select class="in" id="newEgg"><option value="">No egg option</option><option value="add">Can add egg (+₱20)</option><option value="in">Egg included</option></select>
+        <button class="btn" id="addItem">Add item</button>
+        <p class="msg" id="addMsg" role="status"></p>
+      </section>
+    </div>
+    <div id="promosView" hidden>
+      <p class="msg" id="promoMsg" role="status"></p>
+      <div id="promoList"></div>
+      <section class="card">
+        <h2>Add a promo code</h2>
+        <label for="pcCode">Code</label>
+        <input class="in" id="pcCode" maxlength="20" autocapitalize="characters" placeholder="Example: HAPPY10" style="text-transform:uppercase">
+        <label for="pcKind">What does it give?</label>
+        <select class="in" id="pcKind"><option value="percent">Percent off the food (%)</option><option value="amount">Pesos off the food (₱)</option><option value="free_delivery">Free delivery</option></select>
+        <div id="pcValueWrap"><label for="pcValue" id="pcValueLabel">How many percent off?</label>
+        <input class="in" id="pcValue" type="number" inputmode="numeric" min="1" step="1"></div>
+        <label for="pcMin">Minimum order in pesos (optional)</label>
+        <input class="in" id="pcMin" type="number" inputmode="numeric" min="0" step="1" placeholder="0">
+        <button class="btn" id="pcAdd">Add promo code</button>
+        <p class="msg" id="pcMsg" role="status"></p>
+      </section>
+    </div>
   </section>
 </div>
 <dialog id="viewer"><img id="viewerImg" alt=""><button class="btn" id="viewerClose">Close</button></dialog>
@@ -145,7 +208,7 @@ function draw(){
       '<dt>Mobile</dt><dd><a href="tel:'+tel+'">'+tel+'</a></dd><dt>Address</dt><dd>'+esc(o.address)+'</dd>'+
       '<dt>Landmark</dt><dd>'+esc(o.landmark)+'</dd>'+(o.delivery_time?'<dt>Deliver at</dt><dd>'+esc(o.delivery_time)+'</dd>':'')+(o.notes?'<dt>Notes</dt><dd>'+esc(o.notes)+'</dd>':'')+
       '<dt>Paid with</dt><dd>'+esc(o.paid_via)+'</dd><dt>Reference</dt><dd>'+esc(o.payment_ref)+'</dd></dl>'+
-      '<div class="items">'+items+'<div><span>Delivery fee</span><span>'+peso(o.delivery_fee)+'</span></div><div class="tot"><span>Total</span><span>'+peso(o.total)+'</span></div></div>'+
+      '<div class="items">'+items+'<div><span>Delivery fee</span><span>'+peso(o.delivery_fee)+'</span></div>'+(o.discount>0?'<div><span>Promo '+esc(o.promo_code)+'</span><span>&minus;'+peso(o.discount)+'</span></div>':'')+'<div class="tot"><span>Total</span><span>'+peso(o.total)+'</span></div></div>'+
       '<div class="acts">'+acts+'</div></article>';
   }).join('');
 }
@@ -181,6 +244,137 @@ $('list').addEventListener('click',function(e){
   }
 });
 $('viewerClose').addEventListener('click',function(){$('viewer').close()});
+
+/* ---------- menu editor ---------- */
+var menu=[];
+var STATUS=[['available','Available'],['sold_out','Sold out'],['unavailable','Unavailable'],['hidden','Hide']];
+function showTab(which){
+  [['orders','tabOrders'],['menu','tabMenu'],['promos','tabPromos']].forEach(function(t){
+    $(t[0]+'View').hidden=t[0]!==which; $(t[1]).setAttribute('aria-selected',t[0]===which);
+  });
+  if(which==='menu') loadMenu();
+  if(which==='promos') loadPromos();
+}
+$('tabPromos').addEventListener('click',function(){showTab('promos')});
+
+/* ---------- promo codes ---------- */
+var promos=[];
+function promoLabel(p){
+  var t=p.kind==='percent'?(p.value+'% off the food'):p.kind==='amount'?(peso(p.value)+' off the food'):'Free delivery';
+  return t+(p.min_order?(', minimum order '+peso(p.min_order)):'');
+}
+function loadPromos(){
+  sb.from('happy_tummy_promos').select('*').order('created_at',{ascending:false}).then(function(r){
+    if(r.error){$('promoMsg').textContent='Could not load promo codes. Refresh the page.';return;}
+    promos=r.data||[];
+    $('promoMsg').textContent=promos.length?'':'No promo codes yet. Add your first one below.';
+    $('promoList').innerHTML=promos.length?('<section class="card">'+promos.map(function(p){
+      return '<div class="pc '+(p.active?'':'off')+'" data-code="'+esc(p.code)+'"><div><b>'+esc(p.code)+'</b><span>'+esc(promoLabel(p))+(p.active?'':' (turned off)')+'</span></div>'+
+        '<div class="acts" style="margin:0"><button class="btn '+(p.active?'line':'green')+'" data-act="toggle">'+(p.active?'Turn off':'Turn on')+'</button><button class="btn red" data-act="del">Delete</button></div></div>';
+    }).join('')+'</section>'):'';
+  });
+}
+$('promoList').addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var code=b.closest('.pc').dataset.code, p=promos.filter(function(x){return x.code===code})[0];
+  var q=sb.from('happy_tummy_promos');
+  if(b.dataset.act==='del'){ if(!confirm('Delete promo code '+code+'?')) return; q=q.delete().eq('code',code); }
+  else q=q.update({active:!p.active}).eq('code',code);
+  b.disabled=true;
+  q.then(function(r){ if(r.error){b.disabled=false;alert('Could not save. Try again.');return;} loadPromos(); });
+});
+function pcKindChanged(){
+  var k=$('pcKind').value; $('pcValueWrap').hidden=k==='free_delivery';
+  $('pcValueLabel').textContent=k==='percent'?'How many percent off?':'How many pesos off?';
+}
+$('pcKind').addEventListener('change',pcKindChanged);
+$('pcAdd').addEventListener('click',function(){
+  var code=$('pcCode').value.trim().toUpperCase().replace(/\s+/g,''), kind=$('pcKind').value;
+  var value=kind==='free_delivery'?0:Math.round(Number($('pcValue').value)), min=Math.round(Number($('pcMin').value||0));
+  var m=$('pcMsg');
+  if(!/^[A-Z0-9]{3,20}$/.test(code)){m.textContent='Type a code with 3 to 20 letters or numbers, no spaces.';return;}
+  if(kind==='percent'&&!(value>=1&&value<=100)){m.textContent='Type a percent from 1 to 100.';return;}
+  if(kind==='amount'&&!(value>=1)){m.textContent='Type how many pesos off.';return;}
+  if(!(min>=0)){m.textContent='Minimum order must be a number.';return;}
+  if(promos.some(function(x){return x.code===code})){m.textContent='You already have a code named '+code+'.';return;}
+  m.textContent='Adding…';
+  sb.from('happy_tummy_promos').insert({code:code,kind:kind,value:value,min_order:min}).then(function(r){
+    if(r.error){m.textContent='Not added. Try again.';return;}
+    m.textContent='Added '+code+'. Customers can use it now.'; $('pcCode').value=''; $('pcValue').value=''; $('pcMin').value=''; loadPromos();
+  });
+});
+$('tabOrders').addEventListener('click',function(){showTab('orders')});
+$('tabMenu').addEventListener('click',function(){showTab('menu')});
+function loadMenu(){
+  sb.from('happy_tummy_menu').select('*').order('sort',{ascending:true}).then(function(r){
+    if(r.error){$('menuMsg').textContent='Could not load the menu. Refresh the page.';return;}
+    $('menuMsg').textContent=''; menu=r.data||[]; drawMenu();
+  });
+}
+function drawMenu(){
+  var groups=[], gmap={};
+  menu.forEach(function(it){ if(!gmap[it.grp]){gmap[it.grp]=[];groups.push(it.grp);} gmap[it.grp].push(it); });
+  $('menuList').innerHTML=groups.map(function(g){
+    return '<section class="card"><h2 class="grp">'+esc(g)+'</h2>'+gmap[g].map(function(it){
+      var id=esc(it.id);
+      return '<div class="mi '+esc(it.status)+'" data-id="'+id+'">'+
+        '<div><label for="n-'+id+'">Item name</label><input class="in" id="n-'+id+'" data-f="name" maxlength="80" value="'+esc(it.name)+'"></div>'+
+        '<div><label for="p-'+id+'">Price (₱)</label><input class="in" id="p-'+id+'" data-f="price" type="number" inputmode="numeric" min="0" step="1" value="'+esc(it.price)+'"></div>'+
+        '<div class="wide quick" role="group" aria-label="Status of '+esc(it.name)+'">'+STATUS.map(function(s){return '<button type="button" data-v="'+s[0]+'" aria-pressed="'+(it.status===s[0])+'">'+s[1]+'</button>'}).join('')+'</div>'+
+        '<div class="saved" role="status"></div></div>';
+    }).join('')+'</section>';
+  }).join('');
+  $('newGrp').innerHTML=groups.map(function(g){return '<option>'+esc(g)+'</option>'}).join('')+'<option value="__new">New section…</option>';
+  $('newGrpName').hidden=$('newGrp').value!=='__new';
+}
+function saveItem(row,patch,okText){
+  var id=row.dataset.id, note=row.querySelector('.saved');
+  note.className='saved'; note.textContent='Saving…';
+  patch.updated_at=new Date().toISOString();
+  return sb.from('happy_tummy_menu').update(patch).eq('id',id).select('id').then(function(r){
+    if(r.error||!r.data||!r.data.length){note.className='saved no';note.textContent='Not saved. Try again.';return false;}
+    var it=menu.filter(function(x){return x.id===id})[0]; for(var k in patch) it[k]=patch[k];
+    note.textContent=okText||'Saved. Customers see it when they open or refresh the order page.'; return true;
+  });
+}
+$('menuList').addEventListener('change',function(e){
+  var f=e.target.dataset.f, row=e.target.closest('.mi'); if(!f||!row) return;
+  if(f==='name'){
+    var v=e.target.value.trim(); if(!v){e.target.value=menu.filter(function(x){return x.id===row.dataset.id})[0].name;return;}
+    var cur=menu.filter(function(x){return x.id===row.dataset.id})[0];
+    saveItem(row,{name:v,full_name:cur.full_name?(cur.grp+' ('+v+')'):null});
+  }
+  if(f==='price'){
+    var n=Math.round(Number(e.target.value));
+    if(!isFinite(n)||n<0||e.target.value===''){var note=row.querySelector('.saved');note.className='saved no';note.textContent='Type a price, numbers only.';return;}
+    e.target.value=n; saveItem(row,{price:n});
+  }
+});
+$('menuList').addEventListener('click',function(e){
+  var b=e.target.closest('.quick button'); if(!b) return;
+  var row=b.closest('.mi'), v=b.dataset.v;
+  var text={available:'Saved. This item can be ordered again.',sold_out:'Saved. Customers see it as Sold out and cannot tick it.',unavailable:'Saved. Customers see it as Unavailable and cannot tick it.',hidden:'Saved. This item is hidden from the order page.'}[v];
+  saveItem(row,{status:v},text).then(function(ok){
+    if(!ok) return;
+    row.className='mi '+v;
+    row.querySelectorAll('.quick button').forEach(function(x){x.setAttribute('aria-pressed',x.dataset.v===v)});
+  });
+});
+$('newGrp').addEventListener('change',function(){$('newGrpName').hidden=this.value!=='__new'});
+$('addItem').addEventListener('click',function(){
+  var isNew=$('newGrp').value==='__new', grp=(isNew?$('newGrpName').value:$('newGrp').value).trim();
+  var name=$('newName').value.trim(), price=Math.round(Number($('newPrice').value));
+  if(!grp){$('addMsg').textContent='Type a name for the new section.';return;}
+  if(!name){$('addMsg').textContent='Type the item name.';return;}
+  if($('newPrice').value===''||!isFinite(price)||price<0){$('addMsg').textContent='Type a price, numbers only.';return;}
+  var inGrp=menu.filter(function(x){return x.grp===grp}), maxAll=menu.reduce(function(a,x){return Math.max(a,x.sort)},0);
+  var sort=inGrp.length?(inGrp.reduce(function(a,x){return Math.max(a,x.sort)},0)+1):((Math.floor(maxAll/100)+1)*100+1);
+  $('addMsg').textContent='Adding…';
+  sb.from('happy_tummy_menu').insert({id:'item-'+Date.now().toString(36),grp:grp,name:name,price:price,egg:$('newEgg').value||null,sort:sort}).then(function(r){
+    if(r.error){$('addMsg').textContent='Not added. Try again.';return;}
+    $('addMsg').textContent='Added '+name+'.'; $('newName').value=''; $('newPrice').value=''; $('newGrpName').value=''; loadMenu();
+  });
+});
 })();
 </script>
 </body>
