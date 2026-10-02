@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Happy Tummy | Orders</title>
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@600;700&family=Nunito:wght@600;700;800;900&display=swap">
+<style>
+:root{--sun:#FFD43B;--cocoa:#3A1D10;--tomato:#C8321F;--paper:#fff;--butter:#FFF1C2;--muted:#6F4B38;--line:#EBD9B8;--leaf:#1F7A3A}
+*{box-sizing:border-box}
+[hidden]{display:none !important}
+body{margin:0;font-family:'Nunito',system-ui,sans-serif;font-weight:700;font-size:16px;line-height:1.4;color:var(--cocoa);background:var(--sun)}
+.wrap{max-width:760px;margin:0 auto;padding:18px 14px 60px}
+h1,h2{font-family:'Fredoka','Nunito',sans-serif;margin:0}
+h1{font-size:34px}
+button,input,select{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--cocoa);outline-offset:2px}
+.card{background:var(--paper);border-radius:22px;padding:16px;margin-top:14px}
+.in{width:100%;border:2px solid var(--line);border-radius:12px;padding:11px 12px;min-height:46px;margin:4px 0 12px;font-weight:700}
+.btn{border:0;border-radius:999px;background:var(--cocoa);color:#fff;font-weight:900;padding:10px 18px;min-height:44px;cursor:pointer}
+.btn.red{background:var(--tomato)} .btn.green{background:var(--leaf)}
+.btn.line{background:#fff;color:var(--cocoa);border:2px solid var(--cocoa)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{border:2px solid var(--cocoa);background:#fff;border-radius:999px;padding:6px 14px;font-weight:900;min-height:40px;cursor:pointer}
+.chip[aria-pressed="true"]{background:var(--cocoa);color:var(--sun)}
+.head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.no{font-family:'Fredoka',sans-serif;font-size:22px}
+.badge{border-radius:999px;padding:3px 12px;font-weight:900;font-size:14px;background:var(--butter)}
+.badge.pending{background:#FFE08A} .badge.confirmed,.badge.preparing,.badge.out_for_delivery{background:#CDEBD6;color:#0F4D22}
+.badge.delivered{background:#E3E3E3} .badge.rejected{background:#FAD4CE;color:#7A1A0E}
+.meta{color:var(--muted);font-size:14px}
+dl{margin:10px 0 0;display:grid;grid-template-columns:110px 1fr;gap:4px 10px}
+dt{color:var(--muted)} dd{margin:0;font-weight:800;overflow-wrap:anywhere}
+.items{background:var(--butter);border-radius:14px;padding:10px 12px;margin-top:10px}
+.items div{display:flex;justify-content:space-between;gap:10px;padding:2px 0}
+.items small{display:block;color:var(--muted)}
+.items .tot{border-top:2px solid var(--line);margin-top:6px;padding-top:6px;font-weight:900;font-size:18px}
+.acts{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.warn{background:#FAD4CE;color:#7A1A0E;border-radius:12px;padding:8px 10px;margin-top:10px;font-weight:800}
+.msg{margin:10px 0 0;font-weight:800}
+dialog{border:0;border-radius:18px;padding:12px;max-width:min(94vw,560px)}
+dialog img{display:block;max-width:100%;max-height:74vh;margin:0 auto 10px;border-radius:10px}
+dialog::backdrop{background:rgba(58,29,16,.7)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <h1>Happy Tummy orders</h1>
+    <button class="btn line" id="logout" hidden>Log out</button>
+  </div>
+
+  <section class="card" id="login">
+    <h2>Admin login</h2>
+    <p class="meta">Use the same email and password as your Simplify by Anj admin.</p>
+    <label for="email">Email</label>
+    <input class="in" id="email" type="email" autocomplete="username">
+    <label for="pw">Password</label>
+    <input class="in" id="pw" type="password" autocomplete="current-password">
+    <button class="btn" id="loginBtn">Log in</button>
+    <p class="msg" id="loginMsg" role="alert"></p>
+  </section>
+
+  <section id="app" hidden>
+    <div class="filters" id="filters"></div>
+    <p class="msg" id="appMsg" role="status"></p>
+    <div id="list"></div>
+  </section>
+</div>
+<dialog id="viewer"><img id="viewerImg" alt=""><button class="btn" id="viewerClose">Close</button></dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script>
+(function(){
+'use strict';
+var SUPABASE_URL='https://djffchbmdvclzcfvoyhi.supabase.co';
+var SUPABASE_KEY='sb_publishable__zMWLW4AsgYkDMFJGZH_Sg_2apYlo-i';
+var BUCKET='happy-tummy-uploads';
+var $=function(id){return document.getElementById(id)};
+var esc=function(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})};
+var peso=function(n){return '₱'+Number(n).toLocaleString('en-PH')};
+var LABEL={pending:'Payment to check',confirmed:'Payment confirmed',preparing:'Preparing',out_for_delivery:'Out for delivery',delivered:'Delivered',rejected:'Rejected'};
+var FILTERS=[['open','Open orders'],['pending','Payment to check'],['delivered','Delivered'],['rejected','Rejected'],['all','All']];
+var sb=(window.supabase&&window.supabase.createClient)?window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY):null;
+var orders=[], filter='open', timer=null;
+
+if(!sb){$('loginMsg').textContent='Could not connect. Check your internet, then refresh.';return;}
+
+$('loginBtn').addEventListener('click',function(){
+  $('loginMsg').textContent='Logging in…';
+  sb.auth.signInWithPassword({email:$('email').value.trim(),password:$('pw').value}).then(function(r){
+    if(r.error){$('loginMsg').textContent='Wrong email or password. Try again.';return;}
+    $('loginMsg').textContent=''; start();
+  });
+});
+$('pw').addEventListener('keydown',function(e){if(e.key==='Enter') $('loginBtn').click()});
+$('logout').addEventListener('click',function(){sb.auth.signOut().then(function(){location.reload()})});
+sb.auth.getSession().then(function(r){if(r.data&&r.data.session) start()});
+
+function start(){
+  $('login').hidden=true; $('app').hidden=false; $('logout').hidden=false;
+  $('filters').innerHTML=FILTERS.map(function(f){return '<button class="chip" data-f="'+f[0]+'" aria-pressed="'+(f[0]===filter)+'">'+f[1]+'</button>'}).join('');
+  load(); clearInterval(timer); timer=setInterval(load,60000);
+}
+$('filters').addEventListener('click',function(e){
+  var c=e.target.closest('.chip'); if(!c) return; filter=c.dataset.f;
+  document.querySelectorAll('.chip').forEach(function(x){x.setAttribute('aria-pressed',x.dataset.f===filter)}); draw();
+});
+function load(){
+  sb.from('happy_tummy_orders').select('*').order('created_at',{ascending:false}).limit(300).then(function(r){
+    if(r.error){$('appMsg').textContent='Could not load orders. Refresh the page.';return;}
+    orders=r.data||[]; draw();
+  });
+}
+function draw(){
+  var refs={}; orders.forEach(function(o){var k=(o.payment_ref||'').replace(/[^a-z0-9]/gi,'').toLowerCase(); if(k) refs[k]=(refs[k]||0)+1; o._k=k;});
+  var rows=orders.filter(function(o){
+    if(filter==='all') return true;
+    if(filter==='open') return ['pending','confirmed','preparing','out_for_delivery'].indexOf(o.status)>-1;
+    return o.status===filter;
+  });
+  $('appMsg').textContent=rows.length?'':'No orders here yet.';
+  $('list').innerHTML=rows.map(function(o){
+    var items=(o.items||[]).map(function(l){
+      var extra=[l.egg,l.note].filter(Boolean).join(', ');
+      return '<div><span>'+esc(l.qty)+' x '+esc(l.name)+(extra?'<small>'+esc(extra)+'</small>':'')+'</span><span>'+peso(l.line_total)+'</span></div>';
+    }).join('');
+    var when=new Date(o.created_at).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+    var tel=esc(o.mobile);
+    var acts='';
+    if(o.status==='pending') acts+='<button class="btn green" data-s="confirmed">Confirm payment</button><button class="btn red" data-s="rejected">Reject</button>';
+    if(o.status==='confirmed') acts+='<button class="btn green" data-s="preparing">Start preparing</button>';
+    if(o.status==='preparing') acts+='<button class="btn green" data-s="out_for_delivery">Out for delivery</button>';
+    if(o.status==='out_for_delivery') acts+='<button class="btn green" data-s="delivered">Mark delivered</button>';
+    if(o.status==='rejected'||o.status==='delivered') acts+='<button class="btn line" data-s="pending">Move back to check</button>';
+    acts+='<button class="btn line" data-img="'+esc(o.proof_path)+'">View receipt</button>';
+    if(o.house_photo_path) acts+='<button class="btn line" data-img="'+esc(o.house_photo_path)+'">View house photo</button>';
+    acts+='<button class="btn line" data-copy="1">Copy Messenger message</button>';
+    return '<article class="card" data-id="'+esc(o.id)+'">'+
+      '<div class="head"><div><div class="no">'+esc(o.order_no)+'</div><div class="meta">'+esc(when)+'</div></div><span class="badge '+esc(o.status)+'">'+esc(LABEL[o.status]||o.status)+'</span></div>'+
+      (refs[o._k]>1?'<div class="warn">This reference number was used on another order. Check your app before you confirm.</div>':'')+
+      '<dl><dt>Name</dt><dd>'+esc(o.customer_name)+'</dd><dt>Messenger</dt><dd>'+esc(o.fb_name)+'</dd>'+
+      '<dt>Mobile</dt><dd><a href="tel:'+tel+'">'+tel+'</a></dd><dt>Address</dt><dd>'+esc(o.address)+'</dd>'+
+      '<dt>Landmark</dt><dd>'+esc(o.landmark)+'</dd>'+(o.delivery_time?'<dt>Deliver at</dt><dd>'+esc(o.delivery_time)+'</dd>':'')+(o.notes?'<dt>Notes</dt><dd>'+esc(o.notes)+'</dd>':'')+
+      '<dt>Paid with</dt><dd>'+esc(o.paid_via)+'</dd><dt>Reference</dt><dd>'+esc(o.payment_ref)+'</dd></dl>'+
+      '<div class="items">'+items+'<div><span>Delivery fee</span><span>'+peso(o.delivery_fee)+'</span></div><div class="tot"><span>Total</span><span>'+peso(o.total)+'</span></div></div>'+
+      '<div class="acts">'+acts+'</div></article>';
+  }).join('');
+}
+$('list').addEventListener('click',function(e){
+  var b=e.target.closest('button'); if(!b) return;
+  var card=b.closest('article'), id=card.dataset.id, o=orders.filter(function(x){return x.id===id})[0];
+  if(b.dataset.s){
+    var s=b.dataset.s;
+    if(s==='confirmed'&&!confirm('Did you check your GCash, Maya, or bank app and see '+peso(o.total)+' from this customer?')) return;
+    if(s==='rejected'&&!confirm('Reject this order?')) return;
+    b.disabled=true;
+    sb.from('happy_tummy_orders').update({status:s}).eq('id',id).then(function(r){
+      if(r.error){b.disabled=false;alert('Could not save. Try again.');return;} load();
+    });
+  }
+  if(b.dataset.img){
+    sb.storage.from(BUCKET).createSignedUrl(b.dataset.img,600).then(function(r){
+      if(r.error||!r.data){alert('Could not open the photo.');return;}
+      $('viewerImg').src=r.data.signedUrl; $('viewer').showModal();
+    });
+  }
+  if(b.dataset.copy){
+    var first=(o.customer_name||'').split(' ')[0];
+    var text={
+      pending:'Hi '+first+'! This is Happy Tummy. We got your order '+o.order_no+'. We are checking your payment now.',
+      confirmed:'Hi '+first+'! This is Happy Tummy. Your payment for order '+o.order_no+' is confirmed. We are preparing it now.',
+      preparing:'Hi '+first+'! Your Happy Tummy order '+o.order_no+' is being prepared now.',
+      out_for_delivery:'Hi '+first+'! Your Happy Tummy order '+o.order_no+' is on the way.',
+      delivered:'Hi '+first+'! Your Happy Tummy order '+o.order_no+' was delivered. Thank you, enjoy your meal!',
+      rejected:'Hi '+first+'! This is Happy Tummy. We could not find your payment for order '+o.order_no+'. Please send your receipt here so we can check.'
+    }[o.status];
+    navigator.clipboard.writeText(text).then(function(){b.textContent='Copied';setTimeout(function(){b.textContent='Copy Messenger message'},1800)});
+  }
+});
+$('viewerClose').addEventListener('click',function(){$('viewer').close()});
+})();
+</script>
+</body>
+</html>
