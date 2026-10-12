@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>See Inside · Simplify by Anj</title>
+<style>
+:root{--ink:#3B2A5C;--sub:#6B5A8A;--pur:#7D5CD6;--pink:#E9679B;--card:#fff;--line:#E7DEFA}
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,Helvetica,sans-serif;color:var(--ink);background:linear-gradient(160deg,#FFF6CC 0%,#F3ECFF 40%,#DDF1FF 100%);min-height:100vh}
+header{display:flex;align-items:center;gap:12px;padding:16px;max-width:1100px;margin:0 auto}
+header img{width:52px;height:52px}
+header .b{font-weight:700;color:var(--pur)}
+header a.back{margin-left:auto;color:var(--sub);font-size:14px;text-decoration:none}
+main{max-width:1100px;margin:0 auto;padding:0 16px 120px}
+h1{margin:8px 0 4px;font-size:28px}
+.lead{margin:0 0 14px;color:var(--sub);font-size:15px;line-height:1.5}
+.ed{display:flex;gap:8px;margin-bottom:12px}
+.ed button{flex:1;padding:12px;border-radius:14px;border:2px solid var(--line);background:#fff;font-size:15px;font-weight:700;color:var(--ink);cursor:pointer}
+.ed button[aria-pressed="true"]{border-color:var(--pur);background:#F3ECFF}
+.tabs{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs button{flex:none;padding:9px 14px;border-radius:30px;border:0;background:#fff;color:var(--ink);font-size:14px;cursor:pointer;box-shadow:0 3px 10px rgba(80,50,140,.08)}
+.tabs button[aria-selected="true"]{background:var(--pur);color:#fff}
+.note{font-size:14px;color:var(--sub);margin:12px 2px}
+.frame{background:var(--card);border-radius:18px;padding:10px;box-shadow:0 14px 40px rgba(80,50,140,.14);overflow:auto;position:relative;-webkit-overflow-scrolling:touch}
+.frame img{display:block;width:100%;min-width:760px;height:auto;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;pointer-events:none}
+.hint{font-size:12px;color:var(--sub);margin-top:6px;text-align:center}
+.feat{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:18px}
+.feat div{background:#fff;border-radius:14px;padding:12px 14px;font-size:14px;line-height:1.45}
+.feat b{display:block;color:var(--pur);margin-bottom:2px}
+.buy{position:fixed;left:0;right:0;bottom:0;background:rgba(255,255,255,.95);backdrop-filter:blur(6px);border-top:1px solid var(--line);padding:12px 16px}
+.buy .in{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.buy .p{font-size:22px;font-weight:800}
+.buy .p small{display:block;font-size:12px;font-weight:400;color:var(--sub)}
+.buy a{margin-left:auto;background:var(--pink);color:#fff;text-decoration:none;font-weight:700;padding:14px 22px;border-radius:14px;font-size:16px}
+</style>
+</head>
+<body oncontextmenu="return false">
+<header>
+  <img src="preview/logo.png" alt="Simplify by Anj logo">
+  <span class="b">Simplify by Anj</span>
+  <a class="back" href="./">← Back to store</a>
+</header>
+<main>
+  <h1 id="title">See inside the tracker</h1>
+  <p class="lead">This is a preview with sample data. The file you buy has your own blank logs, a starter menu with costing, and works in Excel and Google Sheets.</p>
+  <div class="ed" role="group" aria-label="Choose edition">
+    <button type="button" data-ed="coffee" aria-pressed="true">☕ Coffee Shop</button>
+    <button type="button" data-ed="food" aria-pressed="false">🍛 Food Business</button>
+  </div>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <p class="note" id="note"></p>
+  <div class="frame"><img id="shot" alt="" draggable="false"></div>
+  <p class="hint">Swipe sideways to see the whole sheet.</p>
+  <div class="feat">
+    <div><b>Automatic costing</b>Type the recipe once. Cost, profit and food cost % compute for every item.</div>
+    <div><b>3 suggested prices</b>Suggested, Lower and Premium price for each item, rounded to ₱5.</div>
+    <div><b>Cash flow & dashboard</b>Monthly and yearly cash flow, top items, break-even per day.</div>
+    <div><b>English + Taglish guide</b>Step-by-step instructions inside the file. Beginner friendly.</div>
+  </div>
+</main>
+<div class="buy"><div class="in">
+  <div class="p">₱899<small id="bname">Coffee Shop Tracker</small></div>
+  <a href="./" id="buyLink">Buy now</a>
+</div></div>
+<script>
+const TABS=[
+ ["start","Start Here","Your guide in English (a Taglish version is in the next tab)."],
+ ["dashboard","Dashboard","Your whole business on one screen. Updates by itself."],
+ ["sales","Sales","Pick the item and type the quantity. Price, cost and profit fill in."],
+ ["cashflow","Cash Flow","Month-by-month cash in, cash out, closing cash and net profit."],
+ ["menu","Menu & Pricing","Real cost per item plus 3 suggested prices. Red means raise your price."],
+ ["recipes","Recipe Costing","What goes in each item and how much it costs."],
+ ["inventory","Inventory","Stock in, stock out and waste. Turns red when it's time to reorder."]];
+const PID={coffee:"c3de57d9-f004-475e-8bf1-e36b2b6d0ed4",food:"95c94c55-a521-4e16-9cc9-527285a6164e"};
+const NAMES={coffee:"Coffee Shop Tracker",food:"Food Business Tracker"};
+const q=new URLSearchParams(location.search);
+let ed=q.get("ed")==="food"?"food":"coffee", tab="dashboard";
+const $=id=>document.getElementById(id);
+function render(){
+  document.querySelectorAll(".ed button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.ed===ed));
+  $("tabs").innerHTML=TABS.map(([k,l])=>`<button role="tab" data-t="${k}" aria-selected="${k===tab}">${l}</button>`).join("");
+  const t=TABS.find(x=>x[0]===tab);
+  $("note").textContent=t[2];
+  $("shot").src=`preview/${ed}-${tab}.jpg`; $("shot").alt=`${NAMES[ed]} – ${t[1]} sample`;
+  $("title").textContent="See inside the "+NAMES[ed];
+  $("bname").textContent=NAMES[ed];
+  $("buyLink").href="./#buy="+PID[ed];
+}
+document.querySelector(".ed").addEventListener("click",e=>{const b=e.target.closest("button");if(b){ed=b.dataset.ed;render();}});
+$("tabs").addEventListener("click",e=>{const b=e.target.closest("button");if(b){tab=b.dataset.t;render();}});
+document.addEventListener("dragstart",e=>e.preventDefault());
+render();
+</script>
+</body>
+</html>
