@@ -329,11 +329,11 @@ function showLoadError(){ document.getElementById('grid').innerHTML = '<p class=
 const $ = id => document.getElementById(id);
 const peso = n => new Intl.NumberFormat('en-PH',{style:'currency',currency:'PHP'}).format(Number(n)||0);
 const esc = s => String(s ?? '').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const pub = p => p ? sb.storage.from('store-assets').getPublicUrl(p).data.publicUrl : '';
+const pub = p => !p ? '' : /^(https?:\/\/|preview\/)/.test(p) ? p : sb.storage.from('store-assets').getPublicUrl(p).data.publicUrl;
 
 let products = [], settings = {}, cat = 'All', lang = 'English';
 // Products with a 'See inside' preview page
-const PREVIEW = { 'c3de57d9-f004-475e-8bf1-e36b2b6d0ed4':'preview.html?ed=coffee', '95c94c55-a521-4e16-9cc9-527285a6164e':'preview.html?ed=food', 'dfd7c913-a9a9-4fcc-95cf-1330456a66c6':'preview.html?ed=sop', '8b9742ca-c1ba-4b14-b9dc-79e40a917c08':'preview.html?ed=sop' };
+const PREVIEW = { 'c3de57d9-f004-475e-8bf1-e36b2b6d0ed4':'preview.html?ed=coffee', '95c94c55-a521-4e16-9cc9-527285a6164e':'preview.html?ed=food', 'dfd7c913-a9a9-4fcc-95cf-1330456a66c6':'preview.html?ed=sop', '8b9742ca-c1ba-4b14-b9dc-79e40a917c08':'preview.html?ed=sop', '26d65641-2d4c-4891-aef4-6b951db84449':'preview.html?ed=carwash' };
 const LANGS = { en:'English', tl:'Tagalog' };
 const langsOf = p => String(p.langs || 'en').split(',').map(x => x.trim()).filter(x => LANGS[x]);
 // Payment QR codes: original files, never resized or edited.
