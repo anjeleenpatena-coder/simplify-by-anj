@@ -238,7 +238,7 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
   </div>
   <div class="foot"><button class="btn ghost" type="button" onclick="document.getElementById('sDlg').close()">Done</button></div></div></dialog>
 <dialog id="rDlg"><div class="dlg f"><h2 id="rTitle">Reject order</h2>
-  <p class="note">Choose the reason. A polite email will open in Gmail for you to send.</p>
+  <p class="note">Choose the reason. A polite email is sent to the buyer automatically.</p>
   <div id="rList"></div>
   <label for="rNote">Add a note <small>(optional, or required for “Other”)</small></label><textarea id="rNote" rows="3" placeholder="Example: We received ₱399 but the 1-year plan is ₱699."></textarea>
   <p class="err" id="rErr" role="alert"></p>
@@ -514,22 +514,18 @@ $('ordersTbl').addEventListener('click', async e => {
       if (!confirm(check)) return;
       if (!hasFile && !confirm('This product has no file to send (for example, a done-for-you service).\n\nApprove and send a payment confirmation email instead?')) return;
     }
-    const w = IS_MOBILE ? null : window.open('about:blank','_blank');
-    b.disabled = true;
+    if (a==='resend' && !confirm(`Send the ${o.product_name||'order'} email again to ${o.buyer_email}?`)) return;
+    b.disabled = true; b.textContent = 'Sending…';
     const msg = hasFile ? await buildMessage(o) : confirmationMessage(o);
-    if (!msg) { w && w.close(); b.disabled=false; return toast(`Add the ${o.language||'English'} file or link to this product first (Products tab).`); }
+    if (!msg) { b.disabled=false; renderOrders(); return toast(`Add the ${o.language||'English'} file or link to this product first (Products tab).`); }
     if (a==='approve') {
-      const { error } = await sb.from('store_orders').update({ status:'approved', delivered_at:new Date().toISOString() }).eq('id', o.id);
-      if (error) { w && w.close(); b.disabled=false; return toast('Could not update the order. Try again.'); }
-    } else {
-      await sb.from('store_orders').update({ delivered_at:new Date().toISOString() }).eq('id', o.id);
+      const { error } = await sb.from('store_orders').update({ status:'approved' }).eq('id', o.id);
+      if (error) { b.disabled=false; renderOrders(); return toast('Could not update the order. Try again.'); }
     }
-    if (IS_MOBILE) { openSend(o.buyer_email, msg.subject, msg.body); toast(a==='approve' ? 'Approved. Now send the email.' : 'Email ready.'); }
-    else {
-      const url = webGmailUrl(o.buyer_email, msg.subject, msg.body);
-      if (w) w.location = url; else window.open(url,'_blank');
-      toast(a==='approve' ? 'Approved. Press Send in Gmail.' : 'Email opened in Gmail.');
-    }
+    // Send automatically from the store Gmail. If that fails, open the manual Send box as a backup.
+    const res = await autoSend(o, hasFile ? { kind:'deliver' } : { kind:'custom', subject: msg.subject, body: msg.body });
+    if (res.ok) toast(`✅ ${a==='approve' ? 'Approved and emailed' : 'Emailed again'} to ${o.buyer_email}`);
+    else { toast(res.msg + ' Send it manually instead.'); openSend(o.buyer_email, msg.subject, msg.body); }
     loadOrders();
   }
   if (a==='copy') {
@@ -571,7 +567,7 @@ function openReject(o, emailOnly){
     const i = +(document.querySelector('input[name=rr]:checked')||{}).value;
     const extra = $('rNote').value.trim();
     if (REASONS[i][0]==='Other' && !extra) { $('rErr').textContent = 'Type the reason in the box.'; return; }
-    const w = IS_MOBILE ? null : window.open('about:blank','_blank');
+    const w = null;
     if (!emailOnly) {
       const { error } = await sb.from('store_orders').update({ status:'rejected', notes: REASONS[i][0]==='Other' ? extra.slice(0,120) : REASONS[i][0] }).eq('id', o.id);
       if (error) { w && w.close(); $('rErr').textContent = 'Could not update the order. Try again.'; return; }
@@ -581,8 +577,10 @@ function openReject(o, emailOnly){
     const body = `Hi ${first},\n\nThank you for your order of ${o.product_name||'our product'} (order ref ${refOf(o)}).\n\nUnfortunately, we could not confirm your payment. ${why}\n\nNo worries, this is easy to fix. Just reply to this email with:\n• A clear screenshot of your payment receipt\n• The correct reference number\n\nOnce we confirm it, we'll process your order right away.\n\nIf you have questions, you can also message us on WhatsApp: 0933-855-2646.\n\nSalamat po!\n${settings.store_name||'Simplify by Anj'}`;
     const su = `About your order ${refOf(o)}: payment not confirmed yet`;
     $('rDlg').close();
-    if (IS_MOBILE) openSend(o.buyer_email, su, body);
-    else { const url = webGmailUrl(o.buyer_email, su, body); if (w) w.location = url; else window.open(url,'_blank'); } toast(emailOnly ? 'Email opened in Gmail.' : 'Order rejected. Press Send in Gmail.'); loadOrders();
+    w && w.close();
+    const res = await autoSend(o, { kind:'custom', subject: su, body });
+    if (res.ok) toast(`✅ ${emailOnly ? 'Reason emailed' : 'Rejected and emailed'} to ${o.buyer_email}`);
+    else { toast(res.msg + ' Send it manually instead.'); openSend(o.buyer_email, su, body); } loadOrders();
   };
   $('rDlg').showModal();
 }
@@ -619,6 +617,13 @@ function openSend(to, su, body){
     try { await navigator.clipboard.writeText(txt); toast('Copied. Paste it in your email app.'); } catch { prompt('Copy this message:', txt); }
   };
   $('sDlg').showModal();
+}
+async function autoSend(o, payload){
+  try {
+    const { data, error } = await sb.functions.invoke('send-order-email', { body: { order_id: o.id, ...payload } });
+    if (error) { let m = 'Auto-email failed.'; try { const j = await error.context.json(); if (j && j.error) m = j.error; } catch {} return { ok:false, msg:m }; }
+    return { ok: !!(data && data.ok), msg: (data && data.error) || '' };
+  } catch (e) { return { ok:false, msg:'Auto-email failed (no internet?).' }; }
 }
 function gmailBase(){ const a=(settings.sender_email||'').trim(); return 'https://mail.google.com/mail/?view=cm&fs=1'+(a?'&authuser='+encodeURIComponent(a):''); }
 function normRef(r){ return String(r||'').replace(/[^0-9a-z]/gi,'').toLowerCase(); }
