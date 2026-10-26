@@ -25,6 +25,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 h1,h2,h3{font-family:var(--head);margin:0}
 .hidden{display:none!important}
 
+a.btn{text-decoration:none;text-align:center;display:block}
+#sDlg .btn{white-space:normal}
 .btn{background:var(--sea);color:#fff;border:0;border-radius:999px;padding:9px 14px;font-weight:700;cursor:pointer;white-space:nowrap}
 .btn:hover{background:var(--sea-dk)}
 .btn:disabled{opacity:.6;cursor:wait}
@@ -224,6 +226,17 @@ dialog::backdrop{background:rgba(28,43,58,.55)}
 
 <dialog id="dDlg"><div class="dlg"><h2 id="dTitle">Order details</h2><div class="tbl" id="dBody" style="margin-top:12px"></div>
   <div class="foot"><button class="btn ghost" id="dCopy" type="button">Copy all</button><button class="btn" type="button" onclick="document.getElementById('dDlg').close()">Close</button></div></div></dialog>
+<dialog id="sDlg"><div class="dlg"><h2>Send the email</h2>
+  <p class="note">The message is ready. Pick how to send it, then press <b>Send</b> in your email app.</p>
+  <p style="margin:10px 0 4px"><b>To:</b> <span id="sTo"></span></p>
+  <p style="margin:0 0 12px;font-size:14px;color:#6b6585" id="sSub"></p>
+  <div style="display:flex;flex-direction:column;gap:10px">
+    <a class="btn" id="sGmailApp" href="#">📧 Open in Gmail app</a>
+    <a class="btn ghost" id="sMail" href="#">✉️ Open in iPhone Mail / other app</a>
+    <a class="btn ghost" id="sWeb" href="#" target="_blank" rel="noopener">🌐 Open Gmail website</a>
+    <button class="btn ghost" type="button" id="sCopy">📋 Copy message (paste in Gmail, Messenger or Viber)</button>
+  </div>
+  <div class="foot"><button class="btn ghost" type="button" onclick="document.getElementById('sDlg').close()">Done</button></div></div></dialog>
 <dialog id="rDlg"><div class="dlg f"><h2 id="rTitle">Reject order</h2>
   <p class="note">Choose the reason. A polite email will open in Gmail for you to send.</p>
   <div id="rList"></div>
@@ -501,7 +514,7 @@ $('ordersTbl').addEventListener('click', async e => {
       if (!confirm(check)) return;
       if (!hasFile && !confirm('This product has no file to send (for example, a done-for-you service).\n\nApprove and send a payment confirmation email instead?')) return;
     }
-    const w = window.open('about:blank','_blank');
+    const w = IS_MOBILE ? null : window.open('about:blank','_blank');
     b.disabled = true;
     const msg = hasFile ? await buildMessage(o) : confirmationMessage(o);
     if (!msg) { w && w.close(); b.disabled=false; return toast(`Add the ${o.language||'English'} file or link to this product first (Products tab).`); }
@@ -511,9 +524,12 @@ $('ordersTbl').addEventListener('click', async e => {
     } else {
       await sb.from('store_orders').update({ delivered_at:new Date().toISOString() }).eq('id', o.id);
     }
-    const url = gmailBase()+'&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(msg.subject)+'&body='+encodeURIComponent(msg.body);
-    if (w) w.location = url; else window.open(url,'_blank');
-    toast(a==='approve' ? 'Approved. Press Send in Gmail.' : 'Email opened in Gmail.');
+    if (IS_MOBILE) { openSend(o.buyer_email, msg.subject, msg.body); toast(a==='approve' ? 'Approved. Now send the email.' : 'Email ready.'); }
+    else {
+      const url = webGmailUrl(o.buyer_email, msg.subject, msg.body);
+      if (w) w.location = url; else window.open(url,'_blank');
+      toast(a==='approve' ? 'Approved. Press Send in Gmail.' : 'Email opened in Gmail.');
+    }
     loadOrders();
   }
   if (a==='copy') {
@@ -555,7 +571,7 @@ function openReject(o, emailOnly){
     const i = +(document.querySelector('input[name=rr]:checked')||{}).value;
     const extra = $('rNote').value.trim();
     if (REASONS[i][0]==='Other' && !extra) { $('rErr').textContent = 'Type the reason in the box.'; return; }
-    const w = window.open('about:blank','_blank');
+    const w = IS_MOBILE ? null : window.open('about:blank','_blank');
     if (!emailOnly) {
       const { error } = await sb.from('store_orders').update({ status:'rejected', notes: REASONS[i][0]==='Other' ? extra.slice(0,120) : REASONS[i][0] }).eq('id', o.id);
       if (error) { w && w.close(); $('rErr').textContent = 'Could not update the order. Try again.'; return; }
@@ -563,9 +579,10 @@ function openReject(o, emailOnly){
     const first = (o.buyer_name||'').split(' ')[0];
     const why = [REASONS[i][1], extra].filter(Boolean).join(' ');
     const body = `Hi ${first},\n\nThank you for your order of ${o.product_name||'our product'} (order ref ${refOf(o)}).\n\nUnfortunately, we could not confirm your payment. ${why}\n\nNo worries, this is easy to fix. Just reply to this email with:\n• A clear screenshot of your payment receipt\n• The correct reference number\n\nOnce we confirm it, we'll process your order right away.\n\nIf you have questions, you can also message us on WhatsApp: 0933-855-2646.\n\nSalamat po!\n${settings.store_name||'Simplify by Anj'}`;
-    const url = gmailBase()+'&to='+encodeURIComponent(o.buyer_email)+'&su='+encodeURIComponent(`About your order ${refOf(o)}: payment not confirmed yet`)+'&body='+encodeURIComponent(body);
-    if (w) w.location = url; else window.open(url,'_blank');
-    $('rDlg').close(); toast(emailOnly ? 'Email opened in Gmail.' : 'Order rejected. Press Send in Gmail.'); loadOrders();
+    const su = `About your order ${refOf(o)}: payment not confirmed yet`;
+    $('rDlg').close();
+    if (IS_MOBILE) openSend(o.buyer_email, su, body);
+    else { const url = webGmailUrl(o.buyer_email, su, body); if (w) w.location = url; else window.open(url,'_blank'); } toast(emailOnly ? 'Email opened in Gmail.' : 'Order rejected. Press Send in Gmail.'); loadOrders();
   };
   $('rDlg').showModal();
 }
@@ -587,6 +604,22 @@ async function openDetails(o){
   $('dDlg').showModal();
 }
 
+const IS_MOBILE = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+const IS_IOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform==='MacIntel' && navigator.maxTouchPoints>1);
+function webGmailUrl(to, su, body){ return gmailBase()+'&to='+encodeURIComponent(to)+'&su='+encodeURIComponent(su)+'&body='+encodeURIComponent(body); }
+// Phones: Gmail's website ignores prefilled drafts, so show a box with app buttons (each tap is a real user tap).
+function openSend(to, su, body){
+  const q = 'to='+encodeURIComponent(to)+'&subject='+encodeURIComponent(su)+'&body='+encodeURIComponent(body);
+  $('sTo').textContent = to; $('sSub').textContent = su;
+  $('sGmailApp').href = IS_IOS ? 'googlegmail:///co?'+q : 'intent://co?'+q+'#Intent;scheme=googlegmail;package=com.google.android.gm;S.browser_fallback_url='+encodeURIComponent('mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(su)+'&body='+encodeURIComponent(body))+';end';
+  $('sMail').href = 'mailto:'+encodeURIComponent(to)+'?subject='+encodeURIComponent(su)+'&body='+encodeURIComponent(body);
+  $('sWeb').href = webGmailUrl(to, su, body);
+  $('sCopy').onclick = async () => {
+    const txt = 'To: '+to+'\nSubject: '+su+'\n\n'+body;
+    try { await navigator.clipboard.writeText(txt); toast('Copied. Paste it in your email app.'); } catch { prompt('Copy this message:', txt); }
+  };
+  $('sDlg').showModal();
+}
 function gmailBase(){ const a=(settings.sender_email||'').trim(); return 'https://mail.google.com/mail/?view=cm&fs=1'+(a?'&authuser='+encodeURIComponent(a):''); }
 function normRef(r){ return String(r||'').replace(/[^0-9a-z]/gi,'').toLowerCase(); }
 function dupOf(o){ const r=normRef(o.reference_no); if (r.length<4) return null; return orders.find(x => x.id!==o.id && x.status!=='rejected' && normRef(x.reference_no)===r) || null; }
