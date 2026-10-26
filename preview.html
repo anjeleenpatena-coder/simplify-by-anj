@@ -54,6 +54,7 @@ h1{margin:8px 0 4px;font-size:28px}
     <button type="button" data-ed="food" aria-pressed="false">🍛 Food Business</button>
     <button type="button" data-ed="sop" aria-pressed="false">📋 Café SOP Kit</button>
     <button type="button" data-ed="carwash" aria-pressed="false">🚗 Carwash</button>
+    <button type="button" data-ed="installment" aria-pressed="false">💸 Installment & Budget</button>
   </div>
   <div class="tabs" role="tablist" id="tabs"></div>
   <p class="note" id="note"></p>
@@ -93,6 +94,16 @@ const CW=[
  ["cashflow","Cash Flow","Month-by-month cash in, cash out, closing cash and net profit."],
  ["services","Services & Prices","Price and washer commission per vehicle type. Starter PH prices included."],
  ["supplies","Supplies","Shampoo, wax, tire black... auto-deducted per service. Turns red when it's time to reorder."]];
+const IB=[
+ ["start","Start Here","Your guide in English (a Taglish version is also included)."],
+ ["dashboard","Dashboard","Past due, due this month, due next month, total paid, balance left and where your money goes."],
+ ["calendar","Calendar","Pick a month from 2026 to 2028. See every due date. ✓ = paid, ⚠ = late."],
+ ["installments","Installments","One row per plan. Progress moves by itself: 0 of 12 → 1 of 12 → 2 of 12."],
+ ["budget","Budget Planner","Plan your income and budget per category, then see plan vs actual each month."],
+ ["payments","Payments","Log each payment. Pick the plan, type the amount. That's it."],
+ ["expenses","Expenses","Everyday spending: food, bills, pamasahe, load..."],
+ ["income","Income","Salary, commission, side income. Feeds your Budget Planner."],
+ ["summary","Monthly Summary","Spending per category for every month, with charts."]];
 const P={
  coffee:{name:"Coffee Shop Tracker",price:"₱899",pid:"c3de57d9-f004-475e-8bf1-e36b2b6d0ed4",tabs:TRK,first:"dashboard",
    lead:"Preview with sample data. The file you buy has blank logs and a starter menu with costing.",
@@ -103,6 +114,9 @@ const P={
  carwash:{name:"Carwash Business Tracker",price:"₱399",pid:"26d65641-2d4c-4891-aef4-6b951db84449",tabs:CW,first:"dashboard",
    lead:"Preview with sample data. The file you buy has blank logs and starter services, prices and commissions.",
    feat:[["Washer commission per car","Set the commission per service and vehicle type. 2 washers on 1 car? It splits for you."],["Employee tracker","Cars handled, days present, allowance, vale and balance to pay per cutoff."],["Daily cash & cash flow","End-of-day cash count, monthly cash flow, net profit and unpaid customers."],["English + Taglish guide","Step-by-step instructions inside the file. Beginner friendly."]]},
+ installment:{name:"Installment & Budget Tracker",price:"₱249",pid:"06fbf2cf-3745-46e3-8d16-02860bd95639",tabs:IB,first:"dashboard",
+   lead:"Preview with sample data. The file you buy is blank and ready for your own installments and budget.",
+   feat:[["Auto progress","Log a payment and it moves from 0 of 12 to 1 of 12 by itself, with balance and next due date."],["Due date calendar","Every due date from 2026 to 2028, with paid and late marks."],["Budget planner + expenses","Plan vs actual income and spending per category, savings goal and charts."],["English + Taglish guide","Step-by-step instructions inside the file. Beginner friendly."]]},
  sop:{name:"Café SOP Starter Kit",price:"₱699",pid:"dfd7c913-a9a9-4fcc-95cf-1330456a66c6",tabs:SOP,first:"calibration",
    lead:"Preview with sample entries. The file you buy comes with ready tasks and recipes, and blank logs for your café.",
    feat:[["Made for new cafés","Ready-made opening, closing and cleaning tasks. Start on day one."],["Smart alerts","Tells you what to fix: grind finer, chiller too warm, task overdue."],["Printable","Every tab fits one page wide. Post it at the bar or use a clipboard."],["English + Taglish guide","Step-by-step instructions inside the file. Beginner friendly."]]}};
@@ -119,7 +133,7 @@ function render(){
   $("title").textContent="See inside the "+p.name;
   $("bname").textContent=p.name; $("bprice").textContent=p.price;
   $("buyLink").href="./#buy="+p.pid;
-  $("bundle").hidden = ed==="food" || ed==="carwash";
+  $("bundle").hidden = !["coffee","sop"].includes(ed);
   $("feat").innerHTML=p.feat.map(([b,x])=>`<div><b>${b}</b>${x}</div>`).join("");
 }
 document.querySelector(".ed").addEventListener("click",e=>{const b=e.target.closest("button");if(b){ed=b.dataset.ed;tab=P[ed].first;render();}});
