@@ -127,6 +127,10 @@ input,select{width:100%;padding:11px 14px;border:2px solid var(--line);border-ra
 input:focus,select:focus{border-color:var(--purple-dk);outline:none}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:480px){.two{grid-template-columns:1fr}}
+.mailwarn{background:#FFF6D6;border:2px solid #F4C542;border-radius:14px;padding:10px 14px;font-size:14px;line-height:1.45;margin:12px 0 4px;color:#4A3B00}
+.mailwarn b{color:#3D2B6B}
+.emailhint{font-size:13px;margin:6px 0 0;color:#9A6B00;font-weight:700}
+.emailhint button{border:0;background:#E8559A;color:#fff;border-radius:999px;padding:4px 10px;font-weight:700;margin-left:6px;cursor:pointer}
 .err{color:var(--err);font-weight:700;min-height:1.4em;margin:10px 0 0}
 .full{width:100%;justify-content:center;margin-top:8px;padding:14px}
 .done{text-align:center;padding:12px 0}
@@ -429,6 +433,7 @@ function openBuy(id){
     <p class="price" id="dlgPrice">${peso(payAmt)}</p>
     ${p.description ? `<p class="desc">${esc(p.description)}</p>` : ''}
     ${PREVIEW[p.id] ? `<p><a class="btn ghost" href="${PREVIEW[p.id]}">👀 See inside before you buy</a></p>` : ''}
+    <div class="mailwarn">📧 <b>Your file will be sent to your email.</b> Please double-check that your email address is correct and spelled right before you pay.<br><small>Siguraduhing tama ang spelling ng email mo, dito namin ipapadala ang file.</small></div>
     ${step1Html}
     <section class="step">
       <h3>${icon3d('phone',34)} 2. Scan and pay</h3>
@@ -452,8 +457,12 @@ function openBuy(id){
       <h3>${icon3d('mail',34)} 3. Send your details</h3>
       <label for="f_name">Full name</label>
       <input id="f_name" name="name" required autocomplete="name">
+      <div class="mailwarn">⚠️ <b>Double-check your email.</b> We send your file to this address. One wrong letter (like gmial.com or gmail.con) and you won't receive it.</div>
       <label for="f_email">Email <small>(we send your file here)</small></label>
-      <input id="f_email" name="email" type="email" required autocomplete="email">
+      <input id="f_email" name="email" type="email" required autocomplete="email" autocapitalize="off" spellcheck="false" placeholder="yourname@gmail.com">
+      <p class="emailhint" id="emailHint" hidden></p>
+      <label for="f_email2">Type your email again <small>(to make sure it's correct)</small></label>
+      <input id="f_email2" name="email2" type="email" required autocomplete="off" autocapitalize="off" spellcheck="false" onpaste="return false" placeholder="Same email as above">
       <div class="two">
         <div><label for="f_phone">Mobile number <small>(optional)</small></label>
           <input id="f_phone" name="phone" type="tel" autocomplete="tel" placeholder="09xx xxx xxxx"></div>
@@ -563,6 +572,23 @@ async function collectCustom(p, orderId){
   return out.length ? out : null;
 }
 
+// Common email typos -> suggested fix
+const DOMAIN_FIX = {'gmial.com':'gmail.com','gmal.com':'gmail.com','gmai.com':'gmail.com','gamil.com':'gmail.com','gmaill.com':'gmail.com','gnail.com':'gmail.com','gmail.co':'gmail.com','gmail.cm':'gmail.com','gmail.om':'gmail.com','gmail.con':'gmail.com','gmail.comm':'gmail.com','gmailcom':'gmail.com','gmail.ph':'gmail.com','gimail.com':'gmail.com','gemail.com':'gmail.com','yaho.com':'yahoo.com','yhoo.com':'yahoo.com','yahoo.con':'yahoo.com','yahoo.co':'yahoo.com','hotmial.com':'hotmail.com','hotmail.con':'hotmail.com','hotmai.com':'hotmail.com','outlok.com':'outlook.com','outlook.con':'outlook.com','iclod.com':'icloud.com','icloud.con':'icloud.com'};
+function emailSuggestion(email){
+  const m = String(email).trim().toLowerCase().match(/^([^@\s]+)@([^@\s]+)$/); if (!m) return null;
+  let d = m[2];
+  if (DOMAIN_FIX[d]) d = DOMAIN_FIX[d];
+  else d = d.replace(/\.(con|cmo|cm|om|comm|vom|xom)$/,'.com');
+  return d !== m[2] ? m[1] + '@' + d : null;
+}
+document.addEventListener('input', e => {
+  if (e.target.id !== 'f_email') return;
+  const h = $('emailHint'); if (!h) return;
+  const sug = emailSuggestion(e.target.value);
+  if (sug) { h.hidden = false; h.innerHTML = `Did you mean <u>${esc(sug)}</u>?<button type="button" id="useSug">Use this</button>`; $('useSug').onclick = () => { $('f_email').value = sug; h.hidden = true; }; }
+  else h.hidden = true;
+});
+
 async function submitOrder(e, p){
   e.preventDefault();
   const err = $('err'), btn = $('sendBtn');
@@ -571,6 +597,10 @@ async function submitOrder(e, p){
   err.textContent = '';
   if (!name) return err.textContent = 'Enter your full name.';
   if (!/^\S+@\S+\.\S+$/.test(email)) return err.textContent = 'Enter a valid email so we can send your file.';
+  const sug = emailSuggestion(email);
+  if (sug && confirm(`Your email may have a typo:\n\n${email}\n\nDid you mean ${sug}?\n\nOK = use ${sug}\nCancel = keep what I typed`)) { $('f_email').value = sug; $('f_email2').value = sug; return submitOrder(e, p); }
+  if (email.toLowerCase() !== $('f_email2').value.trim().toLowerCase()) return err.textContent = 'The two emails do not match. Please type the same correct email in both boxes.';
+  if (!confirm(`Please confirm your email:\n\n${email}\n\nWe will send your file to this address. Is it correct and spelled right?`)) { $('f_email').focus(); return; }
   if (!ref) return err.textContent = 'Enter the reference number from your receipt.';
   if (!file) return err.textContent = 'Attach a screenshot of your payment.';
   if (file.size > 5 * 1024 * 1024) return err.textContent = 'Screenshot is too large. Use a file under 5 MB.';
